@@ -1,0 +1,26 @@
+.{
+    .name = "nwdrone",
+    .version = "0.0.0",
+    .minimum_zig_version = "0.13.0",
+
+    // This field is optional.
+    // Each dependency must either provide a `url` and `hash`, or a `path`.
+    // `zig build --fetch` can be used to fetch all dependencies of a package, recursively.
+    // Once all dependencies are fetched, `zig build` no longer requires
+    // internet connectivity.
+    .dependencies = .{
+        .raspilot = .{
+            .url = "https://github.com/Marian-Vittek/raspilot/archive/refs/heads/master.zip",
+            .hash = "1220722d48d269371412da3e8a35f2205d1b5ba83172bf6e86f9a31609a8507dba69",
+        },
+    },
+
+    // Specifies the set of files and directories that are included in this package.
+    .paths = .{
+        "src",
+        "build.zig",
+        "build.zig.zon",
+        "LICENSE",
+        "README.md",
+    },
+}
