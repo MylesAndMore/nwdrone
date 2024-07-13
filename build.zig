@@ -51,11 +51,12 @@ fn resolveTargetFromName(b: *std.Build, platform: ?[]const u8) !std.Build.Resolv
 
 pub fn build(b: *std.Build) void {
     // Resolve the internal build options based on the provided platform name
-    const platform = b.option([]const u8, "platform", "Platform to build for (rpi0, rpi0w, rpi02w, blank for host)");
+    const platform = b.option([]const u8, "platform", "Platform to build for (rpi0, rpi02w, blank for host)");
     const target = resolveTargetFromName(b, platform) catch |err| {
         std.debug.print("failed to resolve target ({})\n", .{err});
         std.process.exit(1);
     };
+
     // Create the executable target and install it
     const exe = b.addExecutable(.{
         .name = "nwdrone",
