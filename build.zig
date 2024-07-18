@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const BuildError = error{
+const BuildError = error {
     UnknownPlatform,
 };
 
@@ -65,7 +65,8 @@ pub fn build(b: *std.Build) void {
         .optimize = b.standardOptimizeOption(.{
             // Default release mode should be ReleaseSafe as it's not that much slower than ReleaseFast
             .preferred_optimize_mode = .ReleaseSafe
-        })
+        }),
+        .link_libc = true,
     });
 
     b.installArtifact(exe);
