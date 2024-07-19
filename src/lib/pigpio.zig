@@ -1,4 +1,5 @@
 const std = @import("std");
+const mem = std.mem;
 const posix = std.posix;
 const testing = std.testing;
 
@@ -11,23 +12,155 @@ const PigpioError = error {
     CommandError,
 };
 
+// pigpio commands (found in pigpio.h, PI_CMD_*)
+pub const Command = enum (u32) {
+    MODES = 0,
+    MODEG,
+    PUD,
+    READ,
+    WRITE,
+    PWM,
+    PRS,
+    PFS,
+    SERVO,
+    WDOG,
+    BR1,
+    BR2,
+    BC1,
+    BC2,
+    BS1,
+    BS2,
+    TICK,
+    HWVER,
+    NO,
+    NB,
+    NP,
+    NC,
+    PRG,
+    PFG,
+    PRRG,
+    HELP,
+    PIGPV,
+    WVCLR,
+    WVAG,
+    WVAS,
+    WVGO,
+    WVGOR,
+    WVBSY,
+    WVHLT,
+    WVSM,
+    WVSP,
+    WVSC,
+    TRIG,
+    PROC,
+    PROCD,
+    PROCR,
+    PROCS,
+    SLRO,
+    SLR,
+    SLRC,
+    PROCP,
+    MICS,
+    MILS,
+    PARSE,
+    WVCRE,
+    WVDEL,
+    WVTX,
+    WVTXR,
+    WVNEW,
+    I2CO,
+    I2CC,
+    I2CRD,
+    I2CWD,
+    I2CWQ,
+    I2CRS,
+    I2CWS,
+    I2CRB,
+    I2CWB,
+    I2CRW,
+    I2CWW,
+    I2CRK,
+    I2CWK,
+    I2CRI,
+    I2CWI,
+    I2CPC,
+    I2CPK,
+    SPIO,
+    SPIC,
+    SPIR,
+    SPIW,
+    SPIX,
+    SERO,
+    SERC,
+    SERRB,
+    SERWB,
+    SERR,
+    SERW,
+    SERDA,
+    GDC,
+    GPW,
+    HC,
+    HP,
+    CF1,
+    CF2,
+    BI2CC,
+    BI2CO,
+    BI2CZ,
+    I2CZ,
+    WVCHA,
+    SLRI,
+    CGI,
+    CSI,
+    FG,
+    FN,
+    NOIB,
+    WVTXM,
+    WVTAT,
+    PADS,
+    PADG,
+    FO,
+    FC,
+    FR,
+    FW,
+    FS,
+    FL,
+    SHELL,
+    BSPIC,
+    BSPIO,
+    BSPIX,
+    BSCX,
+    EVM,
+    EVT,
+    PROCU,
+    WVCAP,
+};
+
 // pigpio command structure
 // extern to be able to interface with pigpiod, which is written in C
 pub const cmdCmd_t = extern struct {
-    cmd: u32,
+    cmd: Command,
     p1: u32,
     p2: u32,
     u: extern union {
         p3: u32,
         ext_len: u32,
-        res: u32,
+        res: i32,
     } = .{ .p3 = 0 },
+};
+
+// An extended pigpio command structure, containing a command, extension(s),
+// and an allocator (used to allocate/free extensions).
+const ExtendedCmd = struct {
+    cmd: cmdCmd_t,
+    ext: *?[]u8,
+    alloc: mem.Allocator,
 };
 
 const PIGPIO_ADDR: [16]u8 = .{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 }; // ::1, IPV6 loopback
 const PIGPIO_PORT: u16 = 8888; // pigpiod default port
 
 var pigpiod: posix.socket_t = undefined;
+var allocator: mem.Allocator = undefined;
 
 /// Initialize connection to pigpiod.
 /// Should be called before any other pigpio functions.
@@ -35,11 +168,14 @@ pub fn init() !void {
     pigpiod = try posix.socket(posix.AF.INET6, posix.SOCK.STREAM, posix.IPPROTO.TCP);
     const addr: posix.sockaddr.in6 = .{
         .addr = PIGPIO_ADDR,
-        .port = std.mem.nativeToBig(u16, PIGPIO_PORT),
+        .port = mem.nativeToBig(u16, PIGPIO_PORT),
         .flowinfo = 0,
-        .scope_id = 0
+        .scope_id = 0,
     };
     try posix.connect(pigpiod, @ptrCast(&addr), @sizeOf(@TypeOf(addr)));
+    // Also initialize a gpa for extensions
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    allocator = gpa.allocator();
 }
 
 /// Close connection to pigpiod.
@@ -53,9 +189,9 @@ pub fn deinit() void {
 /// error checking should be done by the caller (using checkRes, for example)
 /// where appropriate, such as commands that return a status rather than a
 /// response.
-pub fn sendCmd(cmd: cmdCmd_t, ext: ?[]const u8) !cmdCmd_t {
+pub fn sendCmd(cmd: cmdCmd_t, ext: ?[]const u8) !ExtendedCmd {
     // Convert command to byte array and send to pigpiod
-    if (try posix.send(pigpiod, std.mem.asBytes(&cmd), 0) != @sizeOf(cmdCmd_t))
+    if (try posix.send(pigpiod, mem.asBytes(&cmd), 0) != @sizeOf(cmdCmd_t))
         return error.SendFailed;
     // If the command specifies any extensions, send them as well
     if (cmd.u.ext_len > 0) {
@@ -63,30 +199,45 @@ pub fn sendCmd(cmd: cmdCmd_t, ext: ?[]const u8) !cmdCmd_t {
             return error.SendFailed;
     }
 
-    // Create a buffer and receive the response
+    // Create a buffer for the result and receive it
     var res_raw: [@sizeOf(cmdCmd_t)]u8 = undefined;
     if (try posix.recv(pigpiod, &res_raw, posix.MSG.WAITALL) != res_raw.len)
         return error.RecvFailed;
-    // TODO: should be able to handle receiving extensions
     // Convert the response bytes back to a cmdCmd_t
-    var res: cmdCmd_t = undefined;
-    // FIXME: this is very unsafe but the only way I could get it to work, fix if time?
-    _ = std.zig.c_builtins.__builtin_memcpy(&res, &res_raw, res_raw.len);
+    const res = mem.bytesToValue(cmdCmd_t, &res_raw);
+    // Recieve any extensions
+    var extensions: ?[]u8 = null;
+    switch (cmd.cmd) {
+        .BI2CZ, .BSCX, .BSPIX, .CF2, .FL, .FR, .I2CPK, .I2CRD,
+        .I2CRI, .I2CRK, .I2CZ, .PROCP, .SERR, .SLR, .SPIX, .SPIR => {
+            if (res.u.ext_len > 0) {
+                extensions = try allocator.alloc(u8, res.u.ext_len);
+                if (try posix.recv(pigpiod, extensions.?, posix.MSG.WAITALL) != res.u.ext_len)
+                    return error.RecvFailed;
+            }
+        },
+        else => {},
+    }
 
     // According to command format, cmd, p1, and p2 should match the sent command
     if (res.cmd != cmd.cmd or res.p1 != cmd.p1 or res.p2 != cmd.p2)
         return error.InvalidResponse;
-    return res;
+    return .{ .cmd = res, .ext = &extensions, .alloc = allocator };
 }
 
 /// Checks the response of a command and returns an error where appropriate.
-pub fn checkRes(res: cmdCmd_t) !void {
-    if (res.u.res < 0)
+pub inline fn checkRes(res: ExtendedCmd) !void {
+    if (res.cmd.u.res < 0)
         return error.CommandError;
 }
 
 test "network byte order" {
-    try testing.expect(std.mem.nativeToBig(u16, 8888) == 47138);
+    try testing.expect(mem.nativeToBig(u16, 8888) == 47138);
+}
+
+test "Command size" {
+    const size = @sizeOf(Command);
+    try testing.expect(size == @sizeOf(u32));
 }
 
 test "cmdCmd_t alignment" {

@@ -53,9 +53,10 @@ pub fn build(b: *std.Build) void {
     // Resolve the internal build options based on the provided platform name
     const platform = b.option([]const u8, "platform", "Platform to build for (rpi0, rpi02w, blank for host)");
     const target = resolveTargetFromName(b, platform) catch |err| {
-        std.debug.print("failed to resolve target ({})\n", .{err});
+        std.log.err("failed to resolve target ({})", .{err});
         std.process.exit(1);
     };
+    const strip = b.option(bool, "strip", "Strip the executable after building") orelse false;
 
     // Create the executable target and install it
     const exe = b.addExecutable(.{
@@ -67,6 +68,7 @@ pub fn build(b: *std.Build) void {
             .preferred_optimize_mode = .ReleaseSafe
         }),
         .link_libc = true,
+        .strip = strip,
     });
 
     b.installArtifact(exe);
