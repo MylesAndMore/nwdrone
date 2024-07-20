@@ -22,17 +22,14 @@ jobs:
         uses: goto-bus-stop/setup-zig@v2
         with:
           version: 0.13.0
+      
+      - name: Check cache
+        uses: Hanaasagi/zig-action-cache@master
+        with:
+          cache-on-failure: true
 
       - name: Build
-        run: |
-          retries=0
-          until [ $retries -ge 2 ]
-          do
-            zig build -Dplatform=rpi0 -Dstrip=true --release=any --summary all && break
-            retries=$((retries+1))
-            rm -rf ~/.cache/zig
-            echo "Retrying build..."
-          done
+        run: zig build -Dplatform=rpi0 -Dstrip=true --release=any --summary all
 
       - name: Test
         run: zig build test --summary all
