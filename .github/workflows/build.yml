@@ -26,6 +26,9 @@ jobs:
       - name: Build
         run: zig build -Dplatform=rpi0 -Dstrip=true --release=any --summary all
 
+      - name: Run tests
+        run: zig build test --summary all
+
       - name: Upload zig-out
         uses: actions/upload-artifact@v4
         with:

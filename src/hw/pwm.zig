@@ -3,54 +3,57 @@
 const std = @import("std");
 const testing = std.testing;
 
-const pigpio = @import("../lib/pigpio.zig");
+pub const pigpio = @import("../lib/pigpio.zig");
+
+const PWMError = error {
+    BadDuty,
+};
 
 const DUTY_RANGE = 1 << 14;
 
 /// Initialize a pin for PWM output at a given frequency (in hz).
 pub fn init(pin: u32, freq: u32) !void {
-    var res = try pigpio.sendCmd(.{
+    _ = try pigpio.sendCmd(.{
         .cmd = .PFS,
         .p1 = pin,
         .p2 = freq,
-    }, null);
-    try pigpio.checkRes(res);
-    res = try pigpio.sendCmd(.{
+    }, null, null);
+    _ = try pigpio.sendCmd(.{
         .cmd = .PRS,
         .p1 = pin,
         .p2 = DUTY_RANGE,
-    }, null);
-    try pigpio.checkRes(res);
+    }, null, null);
 }
 
 /// Set the PWM duty cycle on a pin.
 /// Valid duty cycles are 0-16384.
 pub fn setDuty(pin: u32, duty: u16) !void {
-    std.debug.assert(duty <= DUTY_RANGE);
-    const res = try pigpio.sendCmd(.{
+    if (duty > DUTY_RANGE)
+        return error.BadDuty;
+    _ = try pigpio.sendCmd(.{
         .cmd = .PWM,
         .p1 = pin,
         .p2 = duty,
-    }, null);
-    try pigpio.checkRes(res);
+    }, null, null);
 }
 
 /// Set the PWM duty cycle on a pin as a percentage.
 /// Valid duty cycles are 0-1.
 pub inline fn setDutyF(pin: u32, duty: f32) !void {
-    std.debug.assert(duty >= 0.0 and duty <= 1.0);
+    if (duty < 0.0 or duty > 1.0)
+        return error.BadDuty;
     try setDuty(pin, @intFromFloat(duty * DUTY_RANGE));
 }
 
 /// Set the PWM pulsewidth (in μs) on a pin.
-/// Valid pulsewidths are 500-2500μs.
-pub fn setPulsewidth(pin: u32, pulsewidth: u32) !void {
-    const res = try pigpio.sendCmd(.{
-        .cmd = .SERVO,
+pub fn setPulsewidth(pin: u32, pulsewidth: f32) !void {
+    const freq = try pigpio.sendCmd(.{
+        .cmd = .PFG,
         .p1 = pin,
-        .p2 = pulsewidth,
-    }, null);
-    try pigpio.checkRes(res);
+        .p2 = 0,
+    }, null, null);
+    const duty: f32 = pulsewidth / @as(f32, @floatFromInt(@divExact(std.time.us_per_s, freq.cmd.u.res)));
+    try setDutyF(pin, duty);
 }
 
 test "float to duty conversion" {

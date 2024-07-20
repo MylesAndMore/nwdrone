@@ -1,4 +1,5 @@
 const std = @import("std");
+const log = std.log;
 const mem = std.mem;
 const posix = std.posix;
 const testing = std.testing;
@@ -143,7 +144,7 @@ pub const cmdCmd_t = extern struct {
     p2: u32,
     u: extern union {
         p3: u32,
-        ext_len: u32,
+        ext_len: i32,
         res: i32,
     } = .{ .p3 = 0 },
 };
@@ -152,19 +153,18 @@ pub const cmdCmd_t = extern struct {
 // and an allocator (used to allocate/free extensions).
 const ExtendedCmd = struct {
     cmd: cmdCmd_t,
-    ext: *?[]u8,
-    alloc: mem.Allocator,
+    ext: ?[]const u8,
 };
 
 const PIGPIO_ADDR: [16]u8 = .{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 }; // ::1, IPV6 loopback
 const PIGPIO_PORT: u16 = 8888; // pigpiod default port
 
 var pigpiod: posix.socket_t = undefined;
-var allocator: mem.Allocator = undefined;
 
 /// Initialize connection to pigpiod.
 /// Should be called before any other pigpio functions.
 pub fn init() !void {
+    log.debug("trying to connect to pigpiod on ipv6 {d}, port {}", .{PIGPIO_ADDR, PIGPIO_PORT});
     pigpiod = try posix.socket(posix.AF.INET6, posix.SOCK.STREAM, posix.IPPROTO.TCP);
     const addr: posix.sockaddr.in6 = .{
         .addr = PIGPIO_ADDR,
@@ -173,9 +173,6 @@ pub fn init() !void {
         .scope_id = 0,
     };
     try posix.connect(pigpiod, @ptrCast(&addr), @sizeOf(@TypeOf(addr)));
-    // Also initialize a gpa for extensions
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    allocator = gpa.allocator();
 }
 
 /// Close connection to pigpiod.
@@ -185,11 +182,14 @@ pub fn deinit() void {
 }
 
 /// Send a command to pigpiod and wait for a response.
-/// This function also performs some basic error checking, but more detailed
-/// error checking should be done by the caller (using checkRes, for example)
-/// where appropriate, such as commands that return a status rather than a
-/// response.
-pub fn sendCmd(cmd: cmdCmd_t, ext: ?[]const u8) !ExtendedCmd {
+/// If the command requires sending extensions, they should be passed in the
+/// `ext` parameter.
+/// If the command requires receiving extensions, an allocator must be passed
+/// in the `alloc` parameter. The caller is responsible for freeing any
+/// returned extensions.
+/// 
+/// This function also performs some basic error checking.
+pub fn sendCmd(cmd: cmdCmd_t, ext: ?[]const u8, alloc: ?mem.Allocator) !ExtendedCmd {
     // Convert command to byte array and send to pigpiod
     if (try posix.send(pigpiod, mem.asBytes(&cmd), 0) != @sizeOf(cmdCmd_t))
         return error.SendFailed;
@@ -206,14 +206,17 @@ pub fn sendCmd(cmd: cmdCmd_t, ext: ?[]const u8) !ExtendedCmd {
     // Convert the response bytes back to a cmdCmd_t
     const res = mem.bytesToValue(cmdCmd_t, &res_raw);
     // Recieve any extensions
-    var extensions: ?[]u8 = null;
+    var extensions: []u8 = undefined;
+    var extensions_recvd = false;
     switch (cmd.cmd) {
         .BI2CZ, .BSCX, .BSPIX, .CF2, .FL, .FR, .I2CPK, .I2CRD,
         .I2CRI, .I2CRK, .I2CZ, .PROCP, .SERR, .SLR, .SPIX, .SPIR => {
             if (res.u.ext_len > 0) {
-                extensions = try allocator.alloc(u8, res.u.ext_len);
-                if (try posix.recv(pigpiod, extensions.?, posix.MSG.WAITALL) != res.u.ext_len)
+                log.debug("receiving {} bytes of extensions", .{res.u.ext_len});
+                extensions = try alloc.?.alloc(u8, @intCast(res.u.ext_len));
+                if (try posix.recv(pigpiod, extensions, posix.MSG.WAITALL) != res.u.ext_len)
                     return error.RecvFailed;
+                extensions_recvd = true;
             }
         },
         else => {},
@@ -222,13 +225,14 @@ pub fn sendCmd(cmd: cmdCmd_t, ext: ?[]const u8) !ExtendedCmd {
     // According to command format, cmd, p1, and p2 should match the sent command
     if (res.cmd != cmd.cmd or res.p1 != cmd.p1 or res.p2 != cmd.p2)
         return error.InvalidResponse;
-    return .{ .cmd = res, .ext = &extensions, .alloc = allocator };
-}
-
-/// Checks the response of a command and returns an error where appropriate.
-pub inline fn checkRes(res: ExtendedCmd) !void {
-    if (res.cmd.u.res < 0)
+    // Negative result codes are errors
+    if (res.u.res < 0) {
+        log.warn("pigpiod returned error code {}", .{res.u.res});
+        // I didn't bother to implement all error codes, if you need to know more info, check out
+        // https://github.com/joan2937/pigpio/blob/master/pigpio.h and search for your error code
         return error.CommandError;
+    }
+    return .{ .cmd = res, .ext = if (extensions_recvd) extensions else null };
 }
 
 test "network byte order" {

@@ -1,31 +1,30 @@
 //! All GPIO functions require pigpio to be initialized first.
 
-const pigpio = @import("../lib/pigpio.zig");
+pub const pigpio = @import("../lib/pigpio.zig");
 
-pub const PinMode = enum {
+pub const Mode = enum {
     Input,
     Output,
     InputPullUp,
     InputPullDown,
 };
 
-pub const PinState = enum {
+pub const State = enum {
     Low,
     High,
 };
 
 /// Initialize a GPIO pin with the specified mode.
-pub fn init(pin: u32, mode: PinMode) !void {
-    var res = try pigpio.sendCmd(.{
+pub fn init(pin: u32, mode: Mode) !void {
+    _ = try pigpio.sendCmd(.{
         .cmd = .MODES,
         .p1 = pin,
         .p2 = switch (mode) {
             .Input, .InputPullUp, .InputPullDown => 0,
             .Output => 1,
         },
-    }, null);
-    try pigpio.checkRes(res);
-    res = try pigpio.sendCmd(.{
+    }, null, null);
+    _ = try pigpio.sendCmd(.{
         .cmd = .PUD,
         .p1 = pin,
         .p2 = switch (mode) {
@@ -33,35 +32,33 @@ pub fn init(pin: u32, mode: PinMode) !void {
             .InputPullDown => 1,
             else => 0,
         },
-    }, null);
-    try pigpio.checkRes(res);
+    }, null, null);
 }
 
 /// Get the state of a GPIO pin.
-pub fn get(pin: u32) !PinState {
+pub fn get(pin: u32) !State {
     const res = try pigpio.sendCmd(.{
         .cmd = .READ,
         .p1 = pin,
         .p2 = 0,
-    }, null);
+    }, null, null);
     return switch (res.cmd.u.res) {
-        0 => PinState.Low,
-        1 => PinState.High,
+        0 => .Low,
+        1 => .High,
         else => unreachable,
     };   
 }
 
 /// Set the state of a GPIO pin.
-pub fn set(pin: u32, state: PinState) !void {
-    const res = try pigpio.sendCmd(.{
+pub fn set(pin: u32, state: State) !void {
+    _ = try pigpio.sendCmd(.{
         .cmd = .WRITE,
         .p1 = pin,
         .p2 = switch (state) {
             .Low => 0,
             .High => 1,
         },
-    }, null);
-    try pigpio.checkRes(res);
+    }, null, null);
 }
 
 /// Toggle the state of a GPIO pin.

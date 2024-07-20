@@ -52,17 +52,17 @@ fn resolveTargetFromName(b: *std.Build, platform: ?[]const u8) !std.Build.Resolv
 pub fn build(b: *std.Build) void {
     // Resolve the internal build options based on the provided platform name
     const platform = b.option([]const u8, "platform", "Platform to build for (rpi0, rpi02w, blank for host)");
-    const target = resolveTargetFromName(b, platform) catch |err| {
+    const selected_target = resolveTargetFromName(b, platform) catch |err| {
         std.log.err("failed to resolve target ({})", .{err});
         std.process.exit(1);
     };
     const strip = b.option(bool, "strip", "Strip the executable after building") orelse false;
 
-    // Create the executable target and install it
+    // Executable target
     const exe = b.addExecutable(.{
         .name = "nwdrone",
         .root_source_file = b.path("src/main.zig"),
-        .target = target,
+        .target = selected_target,
         .optimize = b.standardOptimizeOption(.{
             // Default release mode should be ReleaseSafe as it's not that much slower than ReleaseFast
             .preferred_optimize_mode = .ReleaseSafe
@@ -70,6 +70,27 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
         .strip = strip,
     });
-
     b.installArtifact(exe);
+
+    // Testing step
+    const test_step = b.step("test", "Run unit tests");
+    for (targets) |target| {
+        const tests = b.addTest(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = b.resolveTargetQuery(target.details),
+            .test_runner = b.path("test_runner.zig"),
+        });
+        const run_tests = b.addRunArtifact(tests);
+        run_tests.skip_foreign_checks = true;
+        test_step.dependOn(&run_tests.step);
+    }
+
+    // Documentation (generation) step
+    const docs_step = b.step("docs", "Generate documentation");
+    const install_docs = b.addInstallDirectory(.{
+        .source_dir = exe.getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    });
+    docs_step.dependOn(&install_docs.step);
 }
