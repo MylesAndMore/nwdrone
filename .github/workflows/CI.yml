@@ -1,4 +1,4 @@
-name: Build
+name: CI
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  build:
+  ci:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,11 +22,15 @@ jobs:
         uses: goto-bus-stop/setup-zig@v2
         with:
           version: 0.13.0
+      
+      # Fix some build issues that occured due to caching
+      - name: "Clear zig-cache"
+        run: rm -rf ~/.cache/zig
 
       - name: Build
         run: zig build -Dplatform=rpi0 -Dstrip=true --release=any --summary all
 
-      - name: Run tests
+      - name: Test
         run: zig build test --summary all
 
       - name: Upload zig-out
