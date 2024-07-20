@@ -24,7 +24,15 @@ jobs:
           version: 0.13.0
 
       - name: Build
-        run: zig build -Dplatform=rpi0 -Dstrip=true --release=any --summary all --global-cache-dir ${{github.workspace}}/zig-cache
+        run: |
+          retries=0
+          until [ $retries -ge 2 ]
+          do
+            zig build -Dplatform=rpi0 -Dstrip=true --release=any --summary all && break
+            retries=$((retries+1))
+            rm -rf ~/.cache/zig
+            echo "Retrying build..."
+          done
 
       - name: Test
         run: zig build test --summary all
