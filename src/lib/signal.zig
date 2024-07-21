@@ -1,3 +1,5 @@
+//! Library for easily interfacing with Linux signals through Zig.
+
 const std = @import("std");
 const linux = std.os.linux;
 

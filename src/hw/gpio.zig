@@ -1,3 +1,4 @@
+//! Simple GPIO binary read/write functionality.
 //! All GPIO functions require pigpio to be initialized first.
 
 pub const pigpio = @import("../lib/pigpio.zig");

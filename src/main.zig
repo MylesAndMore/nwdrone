@@ -5,13 +5,20 @@ const log = std.log;
 // All (relavent) imported namespaces are marked public so as to appear in documentation.
 // This is done in all files.
 
+const pwm = @import("hw/pwm.zig");
+
+pub const pixy = @import("device/pixy.zig");
+
 pub const pigpio = @import("lib/pigpio.zig");
 pub const signal = @import("lib/signal.zig");
 
 pub fn main() !void {
     // Create our allocator to be used for all heap allocations
-    var gpa = std.heap.GeneralPurposeAllocator(.{ .verbose_log = true }){};
-    defer _ = gpa.deinit();
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        if (gpa.deinit() == .leak)
+            log.warn("memory leak(s) detected", .{});
+    }
     const alloc = gpa.allocator();
     _ = alloc; // FIXME: temporary, remove when allocator is used
 
@@ -20,12 +27,17 @@ pub fn main() !void {
     const sigs = [_]u6{ linux.SIG.INT, linux.SIG.TERM };
     try signal.handle(&sigs, shutdown );
 
-    // Initialize communication with the pigpio daemon
+    // Initialize hardware and devices
     pigpio.init() catch |err| {
         log.err("failed to connect to pigpiod, are you sure it's running?", .{});
         return err;
     };
     defer pigpio.deinit();
+    pixy.init() catch |err| {
+        log.err("failed to connect to Pixy camera, are you sure it's plugged in/does this user have USB privileges?", .{});
+        return err;
+    };
+    defer pixy.deinit();
     // -- more hardware initialization can go here --
 
     // Once everything is initialized, we can enter the main loop

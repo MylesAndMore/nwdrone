@@ -1,6 +1,8 @@
+//! Simple I2C master read/write functionality.
 //! All I2C functions require pigpio to be initialized first.
 
 const std = @import("std");
+const log = std.log;
 const mem = std.mem;
 
 pub const pigpio = @import("../lib/pigpio.zig");
@@ -43,10 +45,10 @@ pub const Device = struct {
                 .p1 = handle,
                 .p2 = 0,
             }, null, null) catch {
-                std.log.warn("failed to close I2C handle {}", .{handle});
+                log.warn("failed to close I2C handle {}", .{handle});
             };
         } else {
-            std.log.warn("attempted to close nonexistant I2C handle", .{});
+            log.warn("attempted to close nonexistant I2C handle", .{});
         }
     }
 

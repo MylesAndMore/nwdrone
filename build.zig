@@ -1,4 +1,6 @@
 const std = @import("std");
+const Build = std.Build;
+const Compile = Build.Step.Compile;
 
 const BuildError = error {
     UnknownPlatform,
@@ -15,18 +17,18 @@ const targets = [_]Target {
     .{
         .name = "rpi0",
         .details = .{
-            .abi = .musleabihf,
+            .abi = .gnueabihf,
             .cpu_arch = .arm,
             .cpu_model = .{
                 .explicit = &std.Target.arm.cpu.arm1176jzf_s,
             },
             .os_tag = .linux,
-        }
+        },
     },
     .{
-        .name = "rpi02w",
+        .name = "rpi02",
         .details = .{
-            .abi = .musleabihf,
+            .abi = .gnueabihf,
             .cpu_arch = .aarch64,
             .cpu_model = .{
                 .explicit = &std.Target.arm.cpu.cortex_a53,
@@ -36,9 +38,9 @@ const targets = [_]Target {
     },
 };
 
-/// Resolves a target from the `targets` array based on the provided platform name.
+/// Resolve a target from the `targets` array based on the provided platform name.
 /// If the platform is `null`, the host target is returned.
-fn resolveTargetFromName(b: *std.Build, platform: ?[]const u8) !std.Build.ResolvedTarget {
+fn resolveTargetFromName(b: *Build, platform: ?[]const u8) !Build.ResolvedTarget {
     if (platform == null)
         return b.graph.host;
     
@@ -48,14 +50,37 @@ fn resolveTargetFromName(b: *std.Build, platform: ?[]const u8) !std.Build.Resolv
     }
     return error.UnknownPlatform; // Didn't find a matching target
 }
+/// Add include paths to a compile step.
+fn addIncludePaths(b: *Build, compile: *Compile, comptime paths: []const []const u8) void {
+    for (paths) |path|
+        compile.addIncludePath(b.path(path));
+}
 
-pub fn build(b: *std.Build) void {
+/// Add library paths to a compile step.
+fn addLibraryPaths(alloc: std.mem.Allocator, b: *Build, compile: *Compile, comptime paths: []const []const u8) !void {
+    const triple = try compile.rootModuleTarget().linuxTriple(alloc);
+    defer alloc.free(triple);
+    for (paths) |path| {
+        const lib_path = try std.fmt.allocPrint(alloc, "{s}/{s}/", .{ path, triple });
+        defer alloc.free(lib_path);
+        compile.addLibraryPath(b.path(lib_path));
+    }
+}
+
+/// Forcefully link system libraries to the root module of a compile step.
+fn forceLinkSystemLibraries(compile: *Compile, comptime libs: []const []const u8) void {
+    for (libs) |lib|
+        compile.root_module.linkSystemLibrary(lib, .{ .needed = true });
+}
+
+pub fn build(b: *Build) !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const alloc = gpa.allocator();
+
     // Resolve the internal build options based on the provided platform name
-    const platform = b.option([]const u8, "platform", "Platform to build for (rpi0, rpi02w, blank for host)");
-    const selected_target = resolveTargetFromName(b, platform) catch |err| {
-        std.log.err("failed to resolve target ({})", .{err});
-        std.process.exit(1);
-    };
+    const platform = b.option([]const u8, "platform", "Platform to build for (rpi0, rpi02, blank for host)");
+    const selected_target = try resolveTargetFromName(b, platform);
     const strip = b.option(bool, "strip", "Strip the executable after building") orelse false;
 
     // Executable target
@@ -70,6 +95,14 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
         .strip = strip,
     });
+    // Add C include paths and libraries
+    const includes = [_][]const u8{ "lib/pixyusb/include" };
+    addIncludePaths(b, exe, &includes);
+    const lib_paths = [_][]const u8{ "lib/pixyusb" };
+    try addLibraryPaths(alloc, b, exe, &lib_paths);
+    const libs = [_][]const u8{ "pixyusb", "boost_chrono", "boost_system", "boost_thread", "usb-1.0" };
+    forceLinkSystemLibraries(exe, &libs);
+
     b.installArtifact(exe);
 
     // Testing step

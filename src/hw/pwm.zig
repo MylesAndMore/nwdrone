@@ -1,3 +1,5 @@
+//! Simple PWM (write) functionality.
+//! This PWM is done through software, so there are no limitations on which pins can be used.
 //! All PWM functions require pigpio to be initialized first.
 
 const std = @import("std");

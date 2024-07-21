@@ -19,9 +19,9 @@ jobs:
           submodules: recursive
 
       - name: Set up build environment
-        uses: korandoru/setup-zig@v1
+        uses: goto-bus-stop/setup-zig@v2
         with:
-          zig-version: 0.13.0
+          version: 0.13.0
       
       - name: Check cache
         uses: Hanaasagi/zig-action-cache@master
@@ -29,7 +29,7 @@ jobs:
           cache-on-failure: true
 
       - name: Build
-        run: zig build -Dplatform=rpi0 -Dstrip=true --release=any --summary all
+        run: zig build -Dplatform=rpi0 -Dstrip=true -j1 --release=any --summary all
 
       - name: Test
         run: zig build test --summary all

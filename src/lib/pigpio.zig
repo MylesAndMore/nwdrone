@@ -1,10 +1,19 @@
+//! Library for interfacing with pigpiod, the pigpio daemon.
+//! Note that this library does not start pigpiod, it assumes it to already be running.
+//! See https://abyz.me.uk/rpi/pigpio/sif.html for protocol information
+
 const std = @import("std");
 const log = std.log;
 const mem = std.mem;
 const posix = std.posix;
 const testing = std.testing;
 
-// See https://abyz.me.uk/rpi/pigpio/sif.html for protocol information
+// Why pigpiod (daemon) and not just pigpio (C library/interface)?
+// To be completely honest, I had issues cross-compiling pigpio and hadn't figured out
+// how to link pre-compiled libraries in Zig yet.
+// 
+// The daemon works just fine and I don't feel like rewriting this now that I do know
+// how to link pre-compiled libraries, so pigpiod it is!
 
 const PigpioError = error {
     SendFailed,
@@ -149,8 +158,7 @@ pub const cmdCmd_t = extern struct {
     } = .{ .p3 = 0 },
 };
 
-// An extended pigpio command structure, containing a command, extension(s),
-// and an allocator (used to allocate/free extensions).
+// An extended pigpio command structure, containing a command + extension(s),
 const ExtendedCmd = struct {
     cmd: cmdCmd_t,
     ext: ?[]const u8,
@@ -164,7 +172,7 @@ var pigpiod: posix.socket_t = undefined;
 /// Initialize connection to pigpiod.
 /// Should be called before any other pigpio functions.
 pub fn init() !void {
-    log.debug("trying to connect to pigpiod on ipv6 {d}, port {}", .{PIGPIO_ADDR, PIGPIO_PORT});
+    log.info("trying to connect to pigpiod on ipv6 {d}, port {}", .{PIGPIO_ADDR, PIGPIO_PORT});
     pigpiod = try posix.socket(posix.AF.INET6, posix.SOCK.STREAM, posix.IPPROTO.TCP);
     const addr: posix.sockaddr.in6 = .{
         .addr = PIGPIO_ADDR,
@@ -173,6 +181,14 @@ pub fn init() !void {
         .scope_id = 0,
     };
     try posix.connect(pigpiod, @ptrCast(&addr), @sizeOf(@TypeOf(addr)));
+    // Request pigpio version to check comms
+    const res = try sendCmd(.{
+        .cmd = .PIGPV,
+        .p1 = 0,
+        .p2 = 0,
+    }, null, null);
+    // We access p3 of the union instead of res as PIGPV returns an unsigned int
+    log.info("connected to pigpiod version {}", .{res.cmd.u.p3});
 }
 
 /// Close connection to pigpiod.
@@ -212,7 +228,6 @@ pub fn sendCmd(cmd: cmdCmd_t, ext: ?[]const u8, alloc: ?mem.Allocator) !Extended
         .BI2CZ, .BSCX, .BSPIX, .CF2, .FL, .FR, .I2CPK, .I2CRD,
         .I2CRI, .I2CRK, .I2CZ, .PROCP, .SERR, .SLR, .SPIX, .SPIR => {
             if (res.u.ext_len > 0) {
-                log.debug("receiving {} bytes of extensions", .{res.u.ext_len});
                 extensions = try alloc.?.alloc(u8, @intCast(res.u.ext_len));
                 if (try posix.recv(pigpiod, extensions, posix.MSG.WAITALL) != res.u.ext_len)
                     return error.RecvFailed;
