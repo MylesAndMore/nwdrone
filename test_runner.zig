@@ -98,7 +98,7 @@ pub fn main() !void {
 
     const total_tests = pass + fail;
     const status: Status = if (fail == 0) .pass else .fail;
-    printer.status(status, "{d} of {d} test{s} passed\n\n", .{ pass, total_tests, if (total_tests != 1) "s" else "" });
+    printer.status(status, "{d} of {d} test{s} passed\n", .{ pass, total_tests, if (total_tests != 1) "s" else "" });
     if (skip > 0) {
         printer.status(.skip, "{d} test{s} skipped\n", .{ skip, if (skip != 1) "s" else "" });
     }

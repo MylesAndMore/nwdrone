@@ -107,16 +107,13 @@ pub fn build(b: *Build) !void {
 
     // Testing step
     const test_step = b.step("test", "Run unit tests");
-    for (targets) |target| {
-        const tests = b.addTest(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = b.resolveTargetQuery(target.details),
-            .test_runner = b.path("test_runner.zig"),
-        });
-        const run_tests = b.addRunArtifact(tests);
-        run_tests.skip_foreign_checks = true;
-        test_step.dependOn(&run_tests.step);
-    }
+    const tests = b.addTest(.{
+        .root_source_file = b.path("src/tests.zig"),
+        .target = b.graph.host,
+        .test_runner = b.path("test_runner.zig"),
+    });
+    const run_tests = b.addRunArtifact(tests);
+    test_step.dependOn(&run_tests.step);
 
     // Documentation (generation) step
     const docs_step = b.step("docs", "Generate documentation");

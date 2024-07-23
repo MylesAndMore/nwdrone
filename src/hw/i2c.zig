@@ -14,12 +14,14 @@ const I2CError = error {
 };
 
 pub const Bus = enum (u1) {
-    I2C0 = 0,
+    I2C0 = 0, // I2C0 is disabled by default and must be enabled in /boot/firmware/config.txt
     I2C1,
 };
 
+// A single instance of an I2C device.
 pub const Device = struct {
-    handle: ?u32 = null,
+    // -- private --
+    handle: ?u32 = null, // Handle to access this I2C device through pigpio
     
     /// Initialize an I2C connection on the specified bus to the specified address.
     /// The Pi has 2 I2C buses, I2C0 and I2C1 (see pins [here](https://pinout.xyz/)).
@@ -44,8 +46,8 @@ pub const Device = struct {
                 .cmd = .I2CC,
                 .p1 = handle,
                 .p2 = 0,
-            }, null, null) catch {
-                log.warn("failed to close I2C handle {}", .{handle});
+            }, null, null) catch |err| {
+                log.warn("failed to close I2C handle {} ({})", .{ handle, err });
             };
         } else {
             log.warn("attempted to close nonexistant I2C handle", .{});
