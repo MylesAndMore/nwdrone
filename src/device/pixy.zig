@@ -1,4 +1,5 @@
-//! Pixy camera driver, mostly a thin Zig wrapper around the libpixyusb C API.
+//! Pixy camera driver, mostly a thin Zig wrapper around the
+//! [libpixyusb C API](http://charmedlabs.github.io/pixy/pixy_8h.html).
 
 const std = @import("std");
 const log = std.log;
@@ -55,4 +56,4 @@ pub fn setLed(r: u8, g: u8, b: u8) PixyError!void {
 }
 
 // More functions can be added here as needed, simply call into libpixyusb as needed.
-// See lib/pixyusb/include/pixy.h for the full API.
+// See http://charmedlabs.github.io/pixy/pixy_8h.html for the full API.

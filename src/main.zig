@@ -5,12 +5,12 @@ const log = std.log;
 // All (relavent) imported namespaces are marked public so as to appear in documentation.
 // This is done in all files.
 
-const pwm = @import("hw/pwm.zig");
-
 pub const pixy = @import("device/pixy.zig");
 
 pub const pigpio = @import("lib/pigpio.zig");
 pub const signal = @import("lib/signal.zig");
+
+pub const safety = @import("safety.zig");
 
 pub fn main() !void {
     // Create our allocator to be used for all heap allocations
@@ -25,7 +25,7 @@ pub fn main() !void {
     // Connect our shutdown function to the SIGINT and SIGTERM signals,
     // so that the drone can be safely shut down when the process must be terminated
     const sigs = [_]u6{ linux.SIG.INT, linux.SIG.TERM };
-    try signal.handle(&sigs, shutdown );
+    try signal.handle(&sigs, safety.shutdown );
 
     // Initialize hardware and devices
     pigpio.init() catch |err| {
@@ -45,8 +45,8 @@ pub fn main() !void {
     // so that we can put the drone into a safe state before the program exits
     while (true) {
         loop() catch |err| {
-            log.err("performing emergency shutdown due to {}", .{err});
-            shutdown();
+            log.err("main loop threw error: {}", .{ err });
+            safety.shutdown();
             return err; // Re-throw the error to exit
         };
     }
@@ -54,12 +54,4 @@ pub fn main() !void {
 
 inline fn loop() !void {
     // zooooom
-}
-
-fn shutdown() void {
-    // TODO: safety things when implemented (cut motors, etc.)
-}
-
-test "root" {
-    std.testing.refAllDeclsRecursive(@This()); // Include all tests in files used by this one
 }

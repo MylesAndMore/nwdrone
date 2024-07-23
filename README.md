@@ -29,5 +29,11 @@
     - Hardware/low-level operations, for example, specific hardware interfaces (PWM, I2C, etc.)
   - `lib`
     - Zig-based libraries, mostly for OS interaction
+  - `main.zig`
+    - Program entrypoint, where all hardware is initialized and the main loop function exists
+  - `safety.zig`
+    - Important operations ensuring safety of flight
+  - `tests.zig`
+    - Root testing point to import all files containing tests
 - `lib`
   - External or non-Zig based libraries required for project functionality
