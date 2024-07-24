@@ -1,6 +1,8 @@
 //! Simple GPIO binary read/write functionality.
 //! All GPIO functions require pigpio to be initialized first.
 
+const std = @import("std");
+
 pub const pigpio = @import("../lib/pigpio.zig");
 
 pub const Mode = enum {
@@ -34,6 +36,7 @@ pub fn init(pin: u32, mode: Mode) !void {
             else => 0,
         },
     }, null, null);
+    std.log.info("initialized GPIO pin {} as {}", .{ pin, mode });
 }
 
 /// Get the state of a GPIO pin.

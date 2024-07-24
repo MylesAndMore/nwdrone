@@ -25,6 +25,7 @@ pub fn init(pin: u32, freq: u32) !void {
         .p1 = pin,
         .p2 = DUTY_RANGE,
     }, null, null);
+    std.log.info("initialized pin {} for PWM output at {}hz", .{ pin, freq });
 }
 
 /// Set the PWM duty cycle on a pin.

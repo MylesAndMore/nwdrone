@@ -25,20 +25,22 @@ pub const HC_SR04 = struct {
     echo: u32, // GPIO pin (read-only after init)
 
     /// Initialize the sensor.
-    pub fn init(self: *@This()) !void {
+    pub fn init(self: *const @This()) !void {
         try gpio.init(self.trig, .Output);
         try gpio.init(self.echo, .Input);
         try gpio.set(self.trig, .Low);
+        log.info("initialized ultrasonic sensor (t: {}, e: {})", .{ self.trig, self.echo });
     }
 
     /// Deinitialize the sensor.
-    pub fn deinit(self: *@This()) void {
+    pub fn deinit(self: *const @This()) void {
         gpio.deinit(self.trig) catch |err| {
             log.warn("failed to deinit trig pin ({})", .{ err });
         };
         gpio.deinit(self.echo) catch |err| {
             log.warn("failed to deinit echo pin ({})", .{ err });
         };
+        log.info("deinitialized ultrasonic sensor (t: {}, e: {})", .{ self.trig, self.echo });
     }
 
     /// Perform a distance measurement.

@@ -29,10 +29,10 @@
     - Hardware/low-level operations, for example, specific hardware interfaces (PWM, I2C, etc.)
   - `lib`
     - Zig-based libraries, mostly for OS interaction
+  - `drone.zig`
+    - Global drone control operations, mostly safety
   - `main.zig`
     - Program entrypoint, where all hardware is initialized and the main loop function exists
-  - `safety.zig`
-    - Important operations ensuring safety of flight
   - `tests.zig`
     - Root testing point to import all files containing tests
 - `lib`

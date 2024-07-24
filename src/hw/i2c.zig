@@ -37,6 +37,7 @@ pub const Device = struct {
             .p2 = @as(u32, addr),
         }, null, null);
         self.handle = @intCast(res.cmd.u.res);
+        log.info("initialized I2C device at bus {} with address 0x{:02x} (handle {})", .{ bus, addr, self.handle });
     }
 
     /// Deinitialize the I2C connection.
@@ -49,6 +50,8 @@ pub const Device = struct {
             }, null, null) catch |err| {
                 log.warn("failed to close I2C handle {} ({})", .{ handle, err });
             };
+            self.handle = null;
+            log.info("deinitialized I2C device", .{});
         } else {
             log.warn("attempted to close nonexistant I2C handle", .{});
         }
@@ -56,7 +59,7 @@ pub const Device = struct {
 
     /// Read `len` bytes from `reg`.
     /// The maximum number of bytes that can be read at one time is 32.
-    pub fn read(self: *@This(), alloc: mem.Allocator, reg: u8, len: u32) ![]const u8 {
+    pub fn read(self: *const @This(), alloc: mem.Allocator, reg: u8, len: u32) ![]const u8 {
         if (len > 32)
             return error.TooManyBytes;
         const res = try pigpio.sendCmd(.{
@@ -72,7 +75,7 @@ pub const Device = struct {
 
     /// Write `data` to `reg`.
     /// The maximum number of bytes that can be written at one time is 32.
-    pub fn write(self: *@This(), reg: u8, data: []const u8) !void {
+    pub fn write(self: *const @This(), reg: u8, data: []const u8) !void {
         if (data.len > 32)
             return error.TooManyBytes;
         _ = try pigpio.sendCmd(.{

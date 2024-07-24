@@ -5,12 +5,14 @@ const log = std.log;
 // All (relavent) imported namespaces are marked public so as to appear in documentation.
 // This is done in all files.
 
+pub const quad = @import("control/quad.zig");
+
 pub const pixy = @import("device/pixy.zig");
 
 pub const pigpio = @import("lib/pigpio.zig");
 pub const signal = @import("lib/signal.zig");
 
-pub const safety = @import("safety.zig");
+pub const drone = @import("drone.zig");
 
 pub fn main() !void {
     // Create our allocator to be used for all heap allocations
@@ -25,9 +27,9 @@ pub fn main() !void {
     // Connect our shutdown function to the SIGINT and SIGTERM signals,
     // so that the drone can be safely shut down when the process must be terminated
     const sigs = [_]u6{ linux.SIG.INT, linux.SIG.TERM };
-    try signal.handle(&sigs, safety.shutdown );
+    try signal.handle(&sigs, drone.shutdown );
 
-    // Initialize hardware and devices
+    // Initialize hardware and system components
     pigpio.init() catch |err| {
         log.err("failed to connect to pigpiod, are you sure it's running?", .{});
         return err;
@@ -38,20 +40,24 @@ pub fn main() !void {
         return err;
     };
     defer pixy.deinit();
+    try quad.init();
+    defer quad.deinit();
     // -- more hardware initialization can go here --
 
     // Once everything is initialized, we can enter the main loop
-    // This is wrapped in to catch any errors that make their way up here,
+    // This is wrapped to catch any errors that make their way up here,
     // so that we can put the drone into a safe state before the program exits
-    while (true) {
+    // The loop will also exit if any external functions call `drone.shutdown()`
+    while (drone.safe) {
         loop() catch |err| {
             log.err("main loop threw error: {}", .{ err });
-            safety.shutdown();
-            return err; // Re-throw the error to exit
+            break; // Break out of the loop to safely shut down
         };
     }
+    // No shutdown routine is needed here, all deinits have already been deferred
+    log.info("shutting down...", .{});
 }
 
 inline fn loop() !void {
-    // zooooom
+    quad.update();
 }

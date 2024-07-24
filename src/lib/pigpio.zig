@@ -5,6 +5,7 @@
 const std = @import("std");
 const log = std.log;
 const mem = std.mem;
+const Mutex = std.Thread.Mutex;
 const posix = std.posix;
 const testing = std.testing;
 
@@ -168,6 +169,7 @@ const PIGPIO_ADDR: [16]u8 = .{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
 const PIGPIO_PORT: u16 = 8888; // pigpiod default port
 
 var pigpiod: posix.socket_t = undefined;
+var pigpiod_lock = Mutex{};
 
 /// Initialize connection to pigpiod.
 /// Should be called before any other pigpio functions.
@@ -194,6 +196,7 @@ pub fn init() !void {
 /// Close connection to pigpiod.
 /// Should be called after all pigpio functions.
 pub fn deinit() void {
+    log.info("closing connection to pigpiod", .{});
     posix.close(pigpiod);
 }
 
@@ -204,8 +207,10 @@ pub fn deinit() void {
 /// in the `alloc` parameter. The caller is responsible for freeing any
 /// returned extensions.
 /// 
-/// This function also performs some basic error checking.
+/// This function is thread-safe.
 pub fn sendCmd(cmd: cmdCmd_t, ext: ?[]const u8, alloc: ?mem.Allocator) !ExtendedCmd {
+    pigpiod_lock.lock();
+    defer pigpiod_lock.unlock();
     // Convert command to byte array and send to pigpiod
     if (try posix.send(pigpiod, mem.asBytes(&cmd), 0) != @sizeOf(cmdCmd_t))
         return error.SendFailed;

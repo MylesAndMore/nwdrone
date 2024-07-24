@@ -48,6 +48,7 @@ pub fn init() PixyError!void {
 /// Deinitialize the Pixy camera.
 pub fn deinit() void {
     pixy.pixy_close();
+    log.info("deinitialized Pixy", .{});
 }
 
 /// Set the RGB value of the Pixy's omboard LED.

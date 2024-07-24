@@ -10,7 +10,6 @@ pub fn handle(sigs: []const u6, comptime handler: *const fn () void) !void {
         fn sighandler(sig: c_int) callconv(.C) void {
             handler();
             _ = sig;
-            std.process.exit(0);
         }
     }.sighandler;
     const act = linux.Sigaction {
@@ -22,5 +21,6 @@ pub fn handle(sigs: []const u6, comptime handler: *const fn () void) !void {
     for (sigs) |sig| {
         if (linux.sigaction(sig, &act, null) != 0)
             return error.Failure;
+        std.log.info("registered signal handler for {}", .{ sig });
     }
 }
