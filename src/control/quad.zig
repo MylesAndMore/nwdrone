@@ -5,8 +5,11 @@ const log = std.log;
 const time = std.time;
 
 pub const motor = @import("../device/motor.zig");
+pub const mpu = @import("../device/mpu6050.zig");
 
 pub const PID = @import("../lib/pid.zig");
+
+pub const drone = @import("../drone.zig");
 
 // Publicly modifiable variables for the quadcopter's attitude, relative to the
 // inertial frame, in degrees.
@@ -14,7 +17,7 @@ pub var roll: f32 = 0.0;
 pub var pitch: f32 = 0.0;
 pub var yaw: f32 = 0.0;
 
-const MAX_UPDATE_RATE = 200; // update will be throttled to this rate if needed, hz
+const MAX_UPDATE_RATE = 400; // update will be throttled to this rate if needed, hz
 const MAX_UPDATE_PERIOD = time.ms_per_s / MAX_UPDATE_RATE;
 
 var fl = motor.Motor{ .pin = 6, .pw_min = 1030.0, .pw_max = 1450.0 }; // front left (CW)
@@ -53,7 +56,7 @@ var pid_yaw = PID.Controller {
 var prev_update: i64 = 0; // Time of the previous call to update()
 
 /// Apply `thrust` to all motors.
-inline fn setThrust(thrust: f32) void {
+fn setThrust(thrust: f32) void {
     for (motors) |m|
         m.thrust = thrust;
 }
@@ -62,6 +65,8 @@ inline fn setThrust(thrust: f32) void {
 /// This function blocks for a significant amount of time (~4s) during
 /// initialization.
 pub fn init() !void {
+    try mpu.init(); // Init mpu first so dmp can get started
+
     for (motors) |m|
         try m.init();
     // Wait for controllers to do their...beeping
@@ -96,18 +101,32 @@ pub fn rev() void {
 
 /// Update the quadcopter motors.
 /// This should be called at a regular interval to keep the drone in a stable pose.
-pub fn update() void {
+pub fn update() !void {
     if (time.milliTimestamp() - prev_update < MAX_UPDATE_PERIOD)
         return;
     
-    
+    var q = try mpu.get_quaternion() orelse return;
+    const angles = q.to_euler();
+
+    const base_thrust = 5.0;
+
+    pid_roll.update(roll, angles[0]);
+    pid_pitch.update(pitch, angles[1]);
+
+    const roll_out = pid_roll.out;
+    const pitch_out = pid_pitch.out;
+
+    fl.thrust = @floatCast(base_thrust + roll_out - pitch_out);
+    fr.thrust = @floatCast(base_thrust - roll_out - pitch_out);
+    bl.thrust = @floatCast(base_thrust + roll_out + pitch_out);
+    br.thrust = @floatCast(base_thrust - roll_out + pitch_out);
+
+    if (std.math.isNan(fl.thrust) or std.math.isNan(fr.thrust) or std.math.isNan(bl.thrust) or std.math.isNan(br.thrust)) {
+        log.err("NaN thrust values calculated", .{});
+        drone.shutdown();
+    }
+
+    log.info("fl: {d}, fr: {d}, bl: {d}, br: {d}", .{ fl.thrust, fr.thrust, bl.thrust, br.thrust });
 
     prev_update = time.milliTimestamp();
 }
-
-// TODO: rest of quad impl should contain:
-// - ability to set roll, pitch, and yaw attitudes
-// - ability to set altitude? or at least thrust
-// - should be able to handle keeping differential thrust whilst changing overall thrust
-// it should (probably) not contain:
-// - ability to set individual motor thrusts (that should be done in this module; that's its abstraction)

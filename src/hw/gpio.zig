@@ -3,7 +3,8 @@
 
 const std = @import("std");
 
-pub const pigpio = @import("../lib/pigpio.zig");
+pub const pigpio = @cImport({ @cInclude("pigpio.h"); });
+pub const err = @import("../lib/err.zig");
 
 pub const Mode = enum {
     Input,
@@ -19,34 +20,22 @@ pub const State = enum {
 
 /// Initialize a GPIO pin with the specified mode.
 pub fn init(pin: u32, mode: Mode) !void {
-    _ = try pigpio.sendCmd(.{
-        .cmd = .MODES,
-        .p1 = pin,
-        .p2 = switch (mode) {
-            .Input, .InputPullUp, .InputPullDown => 0,
-            .Output => 1,
-        },
-    }, null, null);
-    _ = try pigpio.sendCmd(.{
-        .cmd = .PUD,
-        .p1 = pin,
-        .p2 = switch (mode) {
-            .InputPullUp => 2,
-            .InputPullDown => 1,
-            else => 0,
-        },
-    }, null, null);
+    _ = try err.check(pigpio.gpioSetMode(pin, switch (mode) {
+        .Input, .InputPullUp, .InputPullDown => 0,
+        .Output => 1,
+    }));
+    _ = try err.check(pigpio.gpioSetPullUpDown(pin, switch (mode) {
+        .InputPullUp => 2,
+        .InputPullDown => 1,
+        else => 0,
+    }));
     std.log.info("initialized GPIO pin {} as {}", .{ pin, mode });
 }
 
 /// Get the state of a GPIO pin.
 pub fn get(pin: u32) !State {
-    const res = try pigpio.sendCmd(.{
-        .cmd = .READ,
-        .p1 = pin,
-        .p2 = 0,
-    }, null, null);
-    return switch (res.cmd.u.res) {
+    const res = try err.check(pigpio.gpioRead(pin));
+    return switch (res) {
         0 => .Low,
         1 => .High,
         else => unreachable,
@@ -55,18 +44,14 @@ pub fn get(pin: u32) !State {
 
 /// Set the state of a GPIO pin.
 pub fn set(pin: u32, state: State) !void {
-    _ = try pigpio.sendCmd(.{
-        .cmd = .WRITE,
-        .p1 = pin,
-        .p2 = switch (state) {
-            .Low => 0,
-            .High => 1,
-        },
-    }, null, null);
+    _ = try err.check(pigpio.gpioWrite(pin, switch (state) {
+        .Low => 0,
+        .High => 1,
+    }));
 }
 
 /// Toggle the state of a GPIO pin.
-pub inline fn toggle(pin: u32) !void {
+pub fn toggle(pin: u32) !void {
     try set(pin, switch (try get(pin)) {
         .Low => .High,
         .High => .Low,

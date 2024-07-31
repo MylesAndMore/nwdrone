@@ -5,7 +5,8 @@
 const std = @import("std");
 const testing = std.testing;
 
-pub const pigpio = @import("../lib/pigpio.zig");
+pub const pigpio = @cImport({ @cInclude("pigpio.h"); });
+pub const err = @import("../lib/err.zig");
 
 const PWMError = error {
     BadDuty,
@@ -15,16 +16,8 @@ const DUTY_RANGE = 1 << 14;
 
 /// Initialize a pin for PWM output at a given frequency (in hz).
 pub fn init(pin: u32, freq: u32) !void {
-    _ = try pigpio.sendCmd(.{
-        .cmd = .PFS,
-        .p1 = pin,
-        .p2 = freq,
-    }, null, null);
-    _ = try pigpio.sendCmd(.{
-        .cmd = .PRS,
-        .p1 = pin,
-        .p2 = DUTY_RANGE,
-    }, null, null);
+    _ = try err.check(pigpio.gpioSetPWMfrequency(pin, freq));
+    _ = try err.check(pigpio.gpioSetPWMrange(pin, DUTY_RANGE));
     std.log.info("initialized pin {} for PWM output at {}hz", .{ pin, freq });
 }
 
@@ -33,16 +26,12 @@ pub fn init(pin: u32, freq: u32) !void {
 pub fn setDuty(pin: u32, duty: u16) !void {
     if (duty > DUTY_RANGE)
         return error.BadDuty;
-    _ = try pigpio.sendCmd(.{
-        .cmd = .PWM,
-        .p1 = pin,
-        .p2 = duty,
-    }, null, null);
+    _ = try err.check(pigpio.gpioPWM(pin, duty));
 }
 
 /// Set the PWM duty cycle on a pin as a percentage.
 /// Valid duty cycles are 0-1.
-pub inline fn setDutyF(pin: u32, duty: f32) !void {
+pub fn setDutyF(pin: u32, duty: f32) !void {
     if (duty < 0.0 or duty > 1.0)
         return error.BadDuty;
     try setDuty(pin, @intFromFloat(duty * DUTY_RANGE));
@@ -50,12 +39,8 @@ pub inline fn setDutyF(pin: u32, duty: f32) !void {
 
 /// Set the PWM pulsewidth (in μs) on a pin.
 pub fn setPulsewidth(pin: u32, pulsewidth: f32) !void {
-    const freq = try pigpio.sendCmd(.{
-        .cmd = .PFG,
-        .p1 = pin,
-        .p2 = 0,
-    }, null, null);
-    const duty: f32 = pulsewidth / @as(f32, @floatFromInt(@divExact(std.time.us_per_s, freq.cmd.u.res)));
+    const freq = try err.check(pigpio.gpioGetPWMfrequency(pin));
+    const duty: f32 = pulsewidth / @as(f32, @floatFromInt(@divExact(std.time.us_per_s, freq)));
     try setDutyF(pin, duty);
 }
 

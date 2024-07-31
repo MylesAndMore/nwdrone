@@ -96,11 +96,11 @@ pub fn build(b: *Build) !void {
         .strip = strip,
     });
     // Add C include paths and libraries
-    const includes = [_][]const u8{ "lib/pixyusb/include" };
+    const includes = [_][]const u8{ "lib/pixyusb/include", "lib/pigpio/include" };
     addIncludePaths(b, exe, &includes);
-    const lib_paths = [_][]const u8{ "lib/pixyusb" };
+    const lib_paths = [_][]const u8{ "lib/pixyusb", "lib/pigpio/" };
     try addLibraryPaths(alloc, b, exe, &lib_paths);
-    const libs = [_][]const u8{ "pixyusb", "boost_chrono", "boost_system", "boost_thread", "usb-1.0" };
+    const libs = [_][]const u8{ "pixyusb", "boost_chrono", "boost_system", "boost_thread", "usb-1.0", "pigpio" };
     forceLinkSystemLibraries(exe, &libs);
 
     b.installArtifact(exe);

@@ -21,7 +21,7 @@ const MIN_UPDATE_INTERVAL = 10; // Minimum time between motor updates (ms)
 const MOTOR_LERP_BY = 0.1; // Linear interpolation factor for thrust changes
 
 /// Map a value `x` from range `in_min` to `in_max` to range `out_min` to `out_max`.
-inline fn map(x: anytype, in_min: anytype, in_max: anytype, out_min: anytype, out_max: anytype) @TypeOf(x, in_min, in_max, out_min, out_max) {
+fn map(x: anytype, in_min: anytype, in_max: anytype, out_min: anytype, out_max: anytype) @TypeOf(x, in_min, in_max, out_min, out_max) {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
@@ -57,7 +57,7 @@ pub const Motor = struct {
     }
 
     /// Deinitialize the motor.
-    pub inline fn deinit(self: *@This()) void {
+    pub fn deinit(self: *@This()) void {
         self.kill();
         // PWM module has no deinit
         log.info("deinitialized motor on pin {}", .{ self.pin });
@@ -95,7 +95,7 @@ pub const Motor = struct {
     }
 
     /// Stop updating the motor asynchronously.
-    pub inline fn stopUpdateAsync(self: *@This()) void {
+    pub fn stopUpdateAsync(self: *@This()) void {
         // This will kill the thread
         @atomicStore(bool, &self.update_async, false, .seq_cst);
         log.info("stopped async motor.update() for motor {}", .{ self.pin });

@@ -3,9 +3,10 @@
 
 const std = @import("std");
 const log = std.log;
-const mem = std.mem;
+const testing = std.testing;
 
-pub const pigpio = @import("../lib/pigpio.zig");
+pub const pigpio = @cImport({ @cInclude("pigpio.h"); });
+pub const err = @import("../lib/err.zig");
 
 const I2CError = error {
     BadHandle,
@@ -31,46 +32,48 @@ pub const Device = struct {
     /// [this gist](https://gist.github.com/ribasco/c22ab6b791e681800df47dd0a46c7c3a)
     /// for more info: 
     pub fn init(self: *@This(), addr: u7, bus: Bus) !void {
-        const res = try pigpio.sendCmd(.{
-            .cmd = .I2CO,
-            .p1 = @intFromEnum(bus),
-            .p2 = @as(u32, addr),
-        }, null, null);
-        self.handle = @intCast(res.cmd.u.res);
-        log.info("initialized I2C device at bus {} with address 0x{:02x} (handle {})", .{ bus, addr, self.handle });
+        const res = try err.check(pigpio.i2cOpen(@intFromEnum(bus), @as(u32, addr), 0));
+        self.handle = @intCast(res);
+        log.info("initialized i2c device at {} with address 0x{X:0>2} (handle {})", .{ bus, addr, self.handle.? });
     }
 
     /// Deinitialize the I2C connection.
     pub fn deinit(self: *@This()) void {
         if (self.handle) |handle| {
-            _ = pigpio.sendCmd(.{
-                .cmd = .I2CC,
-                .p1 = handle,
-                .p2 = 0,
-            }, null, null) catch |err| {
-                log.warn("failed to close I2C handle {} ({})", .{ handle, err });
+            err.check(pigpio.i2cClose(handle)) catch |e| {
+                log.warn("failed to close i2c handle {} ({})", .{ handle, e });
             };
+            log.info("closed i2c handle {}", .{ handle });
             self.handle = null;
-            log.info("deinitialized I2C device", .{});
         } else {
-            log.warn("attempted to close nonexistant I2C handle", .{});
+            log.warn("attempted to close nonexistant i2c handle", .{});
         }
     }
 
-    /// Read `len` bytes from `reg`.
+    /// Read bytes from `reg` into `dest`.
+    /// The amount of bytes read is determined by the length of slice `dest`.
     /// The maximum number of bytes that can be read at one time is 32.
-    pub fn read(self: *const @This(), alloc: mem.Allocator, reg: u8, len: u32) ![]const u8 {
-        if (len > 32)
+    pub fn read(self: *const @This(), reg: u8, dest: []u8) !void {
+        if (dest.len > 32)
             return error.TooManyBytes;
-        const res = try pigpio.sendCmd(.{
-            .cmd = .I2CRI,
-            .p1 = self.handle orelse return error.BadHandle,
-            .p2 = @as(u32, reg),
-            .u = .{ .p3 = @sizeOf(@TypeOf(len)) }
-        }, mem.asBytes(&len), alloc);
-        if (res.cmd.u.ext_len != len)
+        const res = try err.check(pigpio.i2cReadI2CBlockData(self.handle orelse return error.BadHandle, @as(u32, reg), dest.ptr, dest.len));
+        if (res != dest.len)
             return error.CommunicationError;
-        return res.ext.?;
+    }
+
+    /// Read `len` bytes from `reg` into a newly allocated slice.
+    /// The maximum number of bytes that can be read at one time is 32.
+    pub fn readAlloc(self: *const @This(), alloc: std.mem.Allocator, reg: u8, len: u32) ![]u8 {
+        const dest = try alloc.alloc(u8, len);
+        try self.read(reg, &dest, len);
+        return dest;
+    }
+
+    /// Read a single byte from `reg`.
+    pub inline fn readByte(self: *const @This(), reg: u8) !u8 {
+        var dest: [1]u8 = undefined;
+        try self.read(reg, dest[0..]);
+        return dest[0];
     }
 
     /// Write `data` to `reg`.
@@ -78,11 +81,52 @@ pub const Device = struct {
     pub fn write(self: *const @This(), reg: u8, data: []const u8) !void {
         if (data.len > 32)
             return error.TooManyBytes;
-        _ = try pigpio.sendCmd(.{
-            .cmd = .I2CWI,
-            .p1 = self.handle orelse return error.BadHandle,
-            .p2 = @as(u32, reg),
-            .u = .{ .p3 = @intCast(data.len) }
-        }, data, null);
+        _ = try err.check(pigpio.i2cWriteI2CBlockData(self.handle orelse return error.BadHandle, @as(u32, reg), @constCast(data.ptr), data.len));
+    }
+
+    /// Write a single byte to `reg`.
+    pub inline fn writeByte(self: *const @This(), reg: u8, data: u8) !void {
+        try self.write(reg, &[_]u8{ data });
+    }
+
+    /// Write a single bit at offset `bit` in `reg` to `data`.
+    pub fn writeBit(self: *const @This(), reg: u8, bit: u3, data: u1) !void {
+        var b = try self.readByte(reg);
+        b = if (data != 0) (b | (@as(u8, 1) << bit)) else (b & ~(@as(u8, 1) << bit));
+        try self.write(reg, &[_]u8{ b });
+    }
+
+    /// Write `data` to `reg` as a series of 16-bit words.
+    pub fn writeWords(self: *const @This(), reg: u8, data: []const u16) !void {
+        if (data.len > 16)
+            return error.TooManyBytes;
+        var buf: [32]u8 = undefined;
+        for (data, 0..) |word, i| {
+            buf[i * 2] = @truncate(word >> 8);
+            buf[i * 2 + 1] = @truncate(word);
+        }
+        try self.write(reg, buf[0..data.len * 2]);
     }
 };
+
+test "write_bit bitwise" {
+    const bit: u3 = 3;
+    const data: u1 = 1;
+
+    var b: u8 = 0xC0;
+    b = if (data != 0) (b | (@as(u8, 1) << bit)) else (b & ~(@as(u8, 1) << bit));
+
+    try testing.expect(b == 0xC8);
+}
+
+test "write_words interleaved" {
+    const words = [_]u16{ 0x1234, 0x5678, 0x9ABC, 0xDEF0 };
+    const bytes = [_]u8{ 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0 };
+    var buf: [32]u8 = undefined;
+    for (words, 0..) |word, i| {
+        buf[i * 2] = @truncate(word >> 8);
+        buf[i * 2 + 1] = @truncate(word);
+    }
+
+    try testing.expectEqualSlices(u8, buf[0..8], bytes[0..]);
+}

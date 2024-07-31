@@ -19,14 +19,14 @@ pub const Controller = struct {
     prev_time: i64 = 0,
 
     pub fn update(self: *@This(), setpoint: f64, measurement: f64) void {
-        const time = std.time.timestamp() - self.prev_time; // Time
+        const time: f64 = @floatFromInt(std.time.timestamp() - self.prev_time); // Time
         const err = setpoint - measurement; // Error signal
         // Compute PID components
         const proportional = self.kp * err; // Proportional
         self.integrator = self.integrator + 0.5 * self.ki * time * (err + self.prev_error); // Integral
         // Derivative (band-limited differentiator)
         // Derivative on measurement, therefore minus sign in front of equation
-        self.differentiator = -(2.0 * self.kd * (measurement - self.measurement)
+        self.differentiator = -(2.0 * self.kd * (measurement - self.prev_measurement)
                               + (2.0 * self.tau - time) * self.differentiator)
                               / (2.0 * self.tau + time);
 
