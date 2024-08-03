@@ -103,6 +103,7 @@ pub fn init() !void {
         log.warn("MPU6050 device ID mismatch: expected 0x{X:2}, got 0x{X:2}", .{ DEVICE_ID, who_am_i });
         return error.DeviceMismatch;
     }
+    log.info("uploading mpu6050 dmp firmware (this might take a bit)", .{});
     try configure();
     try set_accel_offsets(ACCEL_OFFSETS);
     try set_gyro_offsets(GYRO_OFFSETS);

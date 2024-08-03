@@ -16,34 +16,40 @@ pub const Quaternion = struct {
     /// The returned angles are in degrees.
     /// The order of the angles is roll, pitch, yaw.
     /// It does not matter if the quaternion is normalized.
-    pub fn to_euler(self: *const @This()) Vec3 {
+    pub fn toEuler(self: *const @This()) Vec3 {
         // http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/
-        const sqw = self.w*self.w;
-        const sqx = self.x*self.x;
-        const sqy = self.y*self.y;
-        const sqz = self.z*self.z;
+        const sqw = self.w * self.w;
+        const sqx = self.x * self.x;
+        const sqy = self.y * self.y;
+        const sqz = self.z * self.z;
 
         const unit = sqx + sqy + sqz + sqw; // If normalized = one, otherwise = correction factor
-        const cond = self.x*self.y + self.z*self.w;
+        const cond = self.x * self.y + self.z * self.w;
 
-        var roll: f32 = 0.0;
-        var pitch: f32 = 0.0;
-        var yaw: f32 = 0.0;
-        if (cond > 0.499*unit) { // singularity at north pole
-            roll = 2 * math.atan2(self.x,self.w);
-            yaw = math.pi/2.0;
-            pitch = 0;
-        } else if (cond < -0.499*unit) { // singularity at south pole
-            roll = -2 * math.atan2(self.x,self.w);
-            yaw = -math.pi/2.0;
-            pitch = 0;
+        var rpy = Vec3{ 0.0, 0.0, 0.0 }; // Roll, pitch, yaw
+        if (cond > 0.499 * unit) {
+            // Singularity at north pole
+            rpy = .{
+                2 * math.atan2(self.x,self.w),
+                0.0,
+                math.pi / 2.0,
+            };
+        } else if (cond < -0.499 * unit) {
+            // Singularity at south pole
+            rpy = .{
+                -2 * math.atan2(self.x,self.w),
+                0.0,
+                -math.pi / 2.0,
+            };
         } else {
-            roll = math.atan2(2*self.y*self.w-2*self.x*self.z , sqx - sqy - sqz + sqw);
-            yaw = math.asin(2*cond/unit);
-            pitch = math.atan2(2*self.x*self.w-2*self.y*self.z , -sqx + sqy - sqz + sqw);
+            rpy = .{
+                math.atan2(2 * self.y * self.w - 2 * self.x * self.z , sqx - sqy - sqz + sqw),
+                math.atan2(2 * self.x * self.w - 2 * self.y * self.z , -sqx + sqy - sqz + sqw),
+                math.asin(2 * cond / unit),
+            };
         }
 
-        return (Vec3{ roll, pitch, yaw } * @as(Vec3, @splat(180.0 / math.pi))); // Convert to degrees
+        return (rpy * @as(Vec3, @splat(180.0 / math.pi))); // Convert to degrees
     }
 
     /// Normalize the quaternion.
@@ -161,7 +167,7 @@ test "quaternion to euler" {
         .{ 0.0, 90.0, 0.0 },
     };
     for (quaternions, eulers) |quaternion, euler| {
-        const q_euler = quaternion.to_euler();
+        const q_euler = quaternion.toEuler();
         for (0..2) |i|
             try std.testing.expectApproxEqAbs(euler[i], q_euler[i], 0.01);
     }

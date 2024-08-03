@@ -2,6 +2,7 @@
 //! [C library](https://github.com/drbitboy/PID).
 
 const std = @import("std");
+const testing = std.testing;
 
 pub const Controller = struct {
     kp: f64, // kP gain (read-only after init)
@@ -19,7 +20,7 @@ pub const Controller = struct {
     prev_time: i64 = 0,
 
     pub fn update(self: *@This(), setpoint: f64, measurement: f64) void {
-        const time: f64 = @floatFromInt(std.time.timestamp() - self.prev_time); // Time
+        const time: f64 = @floatFromInt(std.time.microTimestamp() - self.prev_time); // Time
         const err = setpoint - measurement; // Error signal
         // Compute PID components
         const proportional = self.kp * err; // Proportional
@@ -34,17 +35,62 @@ pub const Controller = struct {
         self.out = proportional + self.integrator + self.differentiator;
         if (self.out > self.lim_max) {
             // Anti-wind-up for over-saturated output
-            self.integrator += self.lim_max - self.out;
+            if (self.ki != 0.0)
+                self.integrator += self.lim_max - self.out;
             self.out = self.lim_max;
         } else if (self.out < self.lim_min) {
             // Anti-wind-up for under-saturated output
-            self.integrator += self.lim_min - self.out;
+            if (self.ki != 0.0)
+                self.integrator += self.lim_min - self.out;
             self.out = self.lim_min;
         }
 
         // Store error, measurement, and time for later use
         self.prev_error = err;
         self.prev_measurement = measurement;
-        self.prev_time = std.time.timestamp();
+        self.prev_time = std.time.microTimestamp();
     }
 };
+
+/// Update a PID controller num `times` (testing helper).
+fn updateXTimes(pid: *Controller, setpoint: f64, measurement: f64, times: usize) void {
+    for (0..times) |i| {
+        pid.update(setpoint, measurement);
+        std.time.sleep(std.time.ns_per_ms * 2);
+        _ = i;
+    }
+}
+
+test "kp term" {
+    var pid = Controller {
+        .kp = 0.1,
+        .ki = 0.0,
+        .kd = 0.0,
+        .tau = 1.0,
+        .lim_min = -1.0,
+        .lim_max = 1.0,
+    };
+    updateXTimes(&pid, 0.0, 0.0, 50);
+    try testing.expectApproxEqRel(0.0, pid.out, 0.01);
+    updateXTimes(&pid, 0.0, 1.0, 50);
+    try testing.expectApproxEqRel(-0.1, pid.out, 0.01);
+    updateXTimes(&pid, 0.0, -1.0, 50);
+    try testing.expectApproxEqRel(0.1, pid.out, 0.01);
+}
+
+test "kp term with limiting" {
+    var pid = Controller {
+        .kp = 0.5,
+        .ki = 0.0,
+        .kd = 0.0,
+        .tau = 1.0,
+        .lim_min = -1.0,
+        .lim_max = 1.0,
+    };
+    updateXTimes(&pid, 0.0, 0.0, 50);
+    try testing.expectApproxEqRel(0.0, pid.out, 0.01);
+    updateXTimes(&pid, 0.0, 5.0, 50);
+    try testing.expectApproxEqRel(-1.0, pid.out, 0.01);
+    updateXTimes(&pid, 0.0, -5.0, 50);
+    try testing.expectApproxEqRel(1.0, pid.out, 0.01);
+}

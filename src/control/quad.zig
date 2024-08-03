@@ -7,6 +7,7 @@ const time = std.time;
 pub const motor = @import("../device/motor.zig");
 pub const mpu = @import("../device/mpu6050.zig");
 
+pub const math3d = @import("../lib/math3d.zig");
 pub const PID = @import("../lib/pid.zig");
 
 pub const drone = @import("../drone.zig");
@@ -16,6 +17,8 @@ pub const drone = @import("../drone.zig");
 pub var roll: f32 = 0.0;
 pub var pitch: f32 = 0.0;
 pub var yaw: f32 = 0.0;
+// Base thrust value for all motors.
+pub var base: f32 = 0.0;
 
 const MAX_UPDATE_RATE = 400; // update will be throttled to this rate if needed, hz
 const MAX_UPDATE_PERIOD = time.ms_per_s / MAX_UPDATE_RATE;
@@ -26,31 +29,34 @@ var bl = motor.Motor{ .pin = 19, .pw_min = 1200.0, .pw_max = 1700.0 }; // back l
 var br = motor.Motor{ .pin = 26, .pw_min = 1230.0, .pw_max = 1730.0 }; // back right (CW)
 var motors = [_]*motor.Motor{ &fl, &fr, &bl, &br };
 
+// IMU offsets set by zeroAttitude()
+var offsets = math3d.Vec3{ 0.0, 0.0, 0.0 };
+
 // PID controllers for roll, pitch, and yaw
 // TODO: tune params
 var pid_roll = PID.Controller {
-    .kp = 1.0,
+    .kp = 0.5,
     .ki = 0.0,
-    .kd = 0.0,
+    .kd = 0.2,
     .tau = 0.1 * MAX_UPDATE_PERIOD,
-    .lim_min = -1.0,
-    .lim_max = 1.0,
+    .lim_min = -5.0,
+    .lim_max = 5.0,
 };
 var pid_pitch = PID.Controller {
-    .kp = 1.0,
+    .kp = 0.5,
     .ki = 0.0,
-    .kd = 0.0,
+    .kd = 0.2,
     .tau = 0.1 * MAX_UPDATE_PERIOD,
-    .lim_min = -1.0,
-    .lim_max = 1.0,
+    .lim_min = -5.0,
+    .lim_max = 5.0,
 };
 var pid_yaw = PID.Controller {
     .kp = 1.0,
     .ki = 0.0,
     .kd = 0.0,
     .tau = 0.1 * MAX_UPDATE_PERIOD,
-    .lim_min = -1.0,
-    .lim_max = 1.0,
+    .lim_min = -5.0,
+    .lim_max = 5.0,
 };
 
 var prev_update: i64 = 0; // Time of the previous call to update()
@@ -99,34 +105,50 @@ pub fn rev() void {
     time.sleep(std.time.ns_per_ms * 400);
 }
 
+/// Zero the quadcopter's attitude.
+/// This should only be done when the quadcopter is on a known level surface;
+/// all future orientation calculations will be relative to this position.
+/// 
+/// It is recomended to call this function 10-40 seconds after the IMU has been
+/// initialized to allow the DMP to stabilize.
+/// 
+/// Returns false if the current attitude could not be obtained.
+pub fn zeroAttitude() !bool {
+    const q = try mpu.get_quaternion() orelse return false;
+    offsets = q.toEuler();
+    return true;
+}
+
 /// Update the quadcopter motors.
 /// This should be called at a regular interval to keep the drone in a stable pose.
 pub fn update() !void {
     if (time.milliTimestamp() - prev_update < MAX_UPDATE_PERIOD)
         return;
-    
+
     var q = try mpu.get_quaternion() orelse return;
-    const angles = q.to_euler();
+    const angles = q.toEuler() - offsets;
 
-    const base_thrust = 5.0;
-
-    pid_roll.update(roll, angles[0]);
-    pid_pitch.update(pitch, angles[1]);
+    pid_roll.update(@floatCast(roll), @floatCast(angles[0]));
+    pid_pitch.update(@floatCast(pitch), @floatCast(angles[1]));
+    pid_yaw.update(@floatCast(yaw), @floatCast(angles[2]));
 
     const roll_out = pid_roll.out;
     const pitch_out = pid_pitch.out;
+    const yaw_out = pid_yaw.out;
 
-    fl.thrust = @floatCast(base_thrust + roll_out - pitch_out);
-    fr.thrust = @floatCast(base_thrust - roll_out - pitch_out);
-    bl.thrust = @floatCast(base_thrust + roll_out + pitch_out);
-    br.thrust = @floatCast(base_thrust - roll_out + pitch_out);
+    fl.thrust = @floatCast(base + roll_out + pitch_out + yaw_out);
+    fr.thrust = @floatCast(base - roll_out + pitch_out - yaw_out);
+    bl.thrust = @floatCast(base + roll_out - pitch_out - yaw_out);
+    br.thrust = @floatCast(base - roll_out - pitch_out + yaw_out);
 
     if (std.math.isNan(fl.thrust) or std.math.isNan(fr.thrust) or std.math.isNan(bl.thrust) or std.math.isNan(br.thrust)) {
         log.err("NaN thrust values calculated", .{});
         drone.shutdown();
     }
 
-    log.info("fl: {d}, fr: {d}, bl: {d}, br: {d}", .{ fl.thrust, fr.thrust, bl.thrust, br.thrust });
+    // Clamp thrusts to valid range
+    for (motors) |m|
+        m.thrust = std.math.clamp(m.thrust, 0.0, 100.0);
 
     prev_update = time.milliTimestamp();
 }

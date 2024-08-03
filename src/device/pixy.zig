@@ -47,9 +47,9 @@ fn check(res: c_int) PixyError!void {
 pub fn init() PixyError!void {
     try check(pixy.pixy_init());
     // Retrieve firmware version to check comms
-    var version_major: c_ushort = undefined;
-    var version_minor: c_ushort = undefined;
-    var version_build: c_ushort = undefined;
+    var version_major: u16 = undefined;
+    var version_minor: u16 = undefined;
+    var version_build: u16 = undefined;
     try check(pixy.pixy_get_firmware_version(&version_major, &version_minor, &version_build));
     log.info("connected to Pixy version {}.{}.{}", .{ version_major, version_minor, version_build });
 }
