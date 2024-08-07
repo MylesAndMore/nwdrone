@@ -1,3 +1,6 @@
+//! Websocket connection handler module.
+//! Coordinates communication between the clients and the rest of the app.
+
 const std = @import("std");
 const json = std.json;
 const log = std.log.scoped(.sockets);

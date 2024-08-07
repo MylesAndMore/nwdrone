@@ -86,6 +86,7 @@ pub fn build(b: *Build) !void {
         .preferred_optimize_mode = .ReleaseSafe
     });
     const strip = b.option(bool, "strip", "Strip the executable after building") orelse false;
+    const yarn = b.option(bool, "yarn", "Allow invoking yarn to build/test the frontend") orelse true;
 
     // httpz (dependency) target
     const httpz = b.dependency("httpz", .{
@@ -111,11 +112,13 @@ pub fn build(b: *Build) !void {
     const libs = [_][]const u8{ "pixyusb", "boost_chrono", "boost_system", "boost_thread", "usb-1.0", "pigpio" };
     forceLinkSystemLibraries(exe, &libs);
 
-    // Add a step to build the frontend
-    const yarn_build = b.addSystemCommand(&[_][]const u8{ "yarn", "build" });
-    yarn_build.setCwd(b.path("www"));
-    exe.step.dependOn(&yarn_build.step);
-    // TODO: can this be run only when www/* changes?
+    if (yarn) {
+        // Add a step to build the frontend
+        const yarn_build = b.addSystemCommand(&[_][]const u8{ "yarn", "build" });
+        yarn_build.setCwd(b.path("www"));
+        exe.step.dependOn(&yarn_build.step);
+        // TODO: can this be run only when www/* changes?
+    }
 
     b.installArtifact(exe);
 
@@ -128,11 +131,13 @@ pub fn build(b: *Build) !void {
         .test_runner = b.path("test_runner.zig"),
     });
     const run_tests = b.addRunArtifact(tests);
-    // Also run linter for the frontend during testing
-    const yarn_lint = b.addSystemCommand(&[_][]const u8{ "yarn", "lint" });
-    yarn_lint.setCwd(b.path("www"));
-    test_step.dependOn(&yarn_lint.step);
-    test_step.dependOn(&run_tests.step);
+    if (yarn) {
+        // Also run linter for the frontend during testing
+        const yarn_lint = b.addSystemCommand(&[_][]const u8{ "yarn", "lint" });
+        yarn_lint.setCwd(b.path("www"));
+        test_step.dependOn(&yarn_lint.step);
+        test_step.dependOn(&run_tests.step);
+    }
 
     // Documentation (generation) step
     const docs_step = b.step("docs", "Generate documentation");

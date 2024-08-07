@@ -9,15 +9,19 @@ pub const quad = @import("control/quad.zig");
 
 pub const pixy = @import("device/pixy.zig");
 
-pub const pigpio = @cImport({ @cInclude("pigpio.h"); });
 pub const err = @import("lib/err.zig");
+pub const pigpio = @cImport({ @cInclude("pigpio.h"); });
 pub const signal = @import("lib/signal.zig");
 
 pub const server  = @import("remote/server.zig");
+pub const sockets = @import("remote/sockets.zig");
 
 pub const drone = @import("drone.zig");
 
 pub fn main() !void {
+    // killHost() is deferred at the start of main() so it is called last,
+    // and will only kill the host if it has been requested to do so
+    defer drone.killHost();
     // Create our allocator to be used for all heap allocations
     var gpa = std.heap.GeneralPurposeAllocator(.{
         .thread_safe = true,
@@ -31,9 +35,12 @@ pub fn main() !void {
     try signal.handle(&sigs, drone.shutdown );
 
     // Initialize the webserver for remote control
-    // This is done now so that other components can subscribe to the websocket
+    // This is done now so that other modules can subscribe to websocket events
     try server.start(alloc);
     defer server.stop();
+    // Subscribe to kill and shutdown events so the drone/system can be safely shut down
+    try sockets.subscribe("kill", killEvent);
+    try sockets.subscribe("shutdown", shutdownEvent);
 
     // Initialize hardware and system components
     var cfg = pigpio.gpioCfgGetInternals();
@@ -70,7 +77,16 @@ pub fn main() !void {
     log.info("shutting down...", .{});
 }
 
+/// Main control loop for the drone.
 inline fn loop() !void {
     try quad.update();
     std.time.sleep(std.time.ns_per_ms * 5);
+}
+
+fn killEvent(_: sockets.Data) void {
+    drone.shutdown();
+}
+
+fn shutdownEvent(_: sockets.Data) void {
+    drone.shutdownHost();
 }

@@ -1,3 +1,5 @@
+//! Server module, handling basic HTTP and Websocket requests.
+
 const std = @import("std");
 const httpz = @import("httpz");
 const fs = std.fs;
