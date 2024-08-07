@@ -11,7 +11,7 @@
 // all portions of the Pixy codebase presented here.
 
 const std = @import("std");
-const log = std.log;
+const log = std.log.scoped(.pixy);
 
 const pixy = @cImport({
     @cInclude("pixy.h");

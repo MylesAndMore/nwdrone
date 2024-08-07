@@ -3,6 +3,7 @@
 //! This assumes that the C function returns a negative value on failure.
 
 const std = @import("std");
+const log = std.log.scoped(.err);
 
 const CError = error {
     FunctionFailed,
@@ -10,7 +11,7 @@ const CError = error {
 
 pub fn check(res: c_int) CError!c_int {
     if (res < 0) {
-        std.log.warn("err.check() failed ({})", .{ res });
+        log.warn("check() failed ({})", .{ res });
         return CError.FunctionFailed;
     }
     return res;

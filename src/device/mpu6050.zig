@@ -2,7 +2,7 @@
 //! Based on [i2cdevlib's MPU6050 library](https://github.com/jrowberg/i2cdevlib/tree/master/RP2040/MPU6050).
 
 const std = @import("std");
-const log = std.log;
+const log = std.log.scoped(.mpu6050);
 const time = std.time;
 
 pub const i2c = @import("../hw/i2c.zig");

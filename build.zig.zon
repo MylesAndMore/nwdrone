@@ -2,8 +2,12 @@
     .name = "nwdrone",
     .version = "0.0.0",
     .minimum_zig_version = "0.13.0",
-
-    // Specifies the set of files and directories that are included in this package.
+    .dependencies = .{
+        .httpz = .{
+            .url = "git+https://github.com/karlseguin/http.zig?ref=zig-0.13#581fe8ae5c119c222d6fa626aebfcf58122df8dd",
+            .hash = "1220eab1411af0e3217203d6891584cbcda8709f0bacec2aa2b1b55a1a1703559edf",
+        },
+    },
     .paths = .{
         "src",
         "lib",

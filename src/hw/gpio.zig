@@ -2,6 +2,7 @@
 //! All GPIO functions require pigpio to be initialized first.
 
 const std = @import("std");
+const log = std.log.scoped(.gpio);
 
 pub const pigpio = @cImport({ @cInclude("pigpio.h"); });
 pub const err = @import("../lib/err.zig");
@@ -29,7 +30,7 @@ pub fn init(pin: u32, mode: Mode) !void {
         .InputPullDown => 1,
         else => 0,
     }));
-    std.log.info("initialized GPIO pin {} as {}", .{ pin, mode });
+    log.info("initialized GPIO pin {} as {}", .{ pin, mode });
 }
 
 /// Get the state of a GPIO pin.

@@ -3,6 +3,7 @@
 //! All PWM functions require pigpio to be initialized first.
 
 const std = @import("std");
+const log = std.log.scoped(.pwm);
 const testing = std.testing;
 
 pub const pigpio = @cImport({ @cInclude("pigpio.h"); });
@@ -18,7 +19,7 @@ const DUTY_RANGE = 1 << 14;
 pub fn init(pin: u32, freq: u32) !void {
     _ = try err.check(pigpio.gpioSetPWMfrequency(pin, freq));
     _ = try err.check(pigpio.gpioSetPWMrange(pin, DUTY_RANGE));
-    std.log.info("initialized pin {} for PWM output at {}hz", .{ pin, freq });
+    log.info("initialized pin {} for PWM output at {}hz", .{ pin, freq });
 }
 
 /// Set the PWM duty cycle on a pin.

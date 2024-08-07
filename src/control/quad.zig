@@ -1,7 +1,7 @@
 //! Handles quad motor control between all four motors.
 
 const std = @import("std");
-const log = std.log;
+const log = std.log.scoped(.quad);
 const time = std.time;
 
 pub const motor = @import("../device/motor.zig");
@@ -9,6 +9,8 @@ pub const mpu = @import("../device/mpu6050.zig");
 
 pub const math3d = @import("../lib/math3d.zig");
 pub const PID = @import("../lib/pid.zig");
+
+pub const sockets = @import("../remote/sockets.zig");
 
 pub const drone = @import("../drone.zig");
 
@@ -67,6 +69,18 @@ fn setThrust(thrust: f32) void {
         m.thrust = thrust;
 }
 
+/// Handle a remote thrust event.
+fn thrustEvent(data: sockets.Data) void {
+    var thrust: f32 = 0.0;
+    const val = data.dat.array.items[0].object.get("value").?;
+    switch (val) {
+        .float => thrust = @floatCast(val.float),
+        .integer => thrust = @floatFromInt(val.integer),
+        else => log.err("invalid thrust value received: {}", .{ val }),
+    }
+    base = thrust;
+}
+
 /// Initialize all quadcopter motors.
 /// This function blocks for a significant amount of time (~4s) during
 /// initialization.
@@ -80,6 +94,8 @@ pub fn init() !void {
     for (motors) |m|
         try m.startUpdateAsync();
     log.info("all motors initialized and updating", .{});
+    // Subscribe to socket thrust events
+    try sockets.subscribe("thrust", thrustEvent);
 }
 
 /// Deinitialize all quadcopter motors.
@@ -124,6 +140,12 @@ pub fn zeroAttitude() !bool {
 pub fn update() !void {
     if (time.milliTimestamp() - prev_update < MAX_UPDATE_PERIOD)
         return;
+
+    // If thrust is (basically) zero, don't bother with any logic
+    if (base < 0.2) {
+        setThrust(0.0);
+        return;
+    }
 
     var q = try mpu.get_quaternion() orelse return;
     const angles = q.toEuler() - offsets;

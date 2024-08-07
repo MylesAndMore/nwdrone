@@ -1,6 +1,7 @@
 //! Library for easily interfacing with Linux signals through Zig.
 
 const std = @import("std");
+const log = std.log.scoped(.signal);
 const linux = std.os.linux;
 
 /// Connect a signal handler to the given signals.
@@ -21,6 +22,6 @@ pub fn handle(sigs: []const u6, comptime handler: *const fn () void) !void {
     for (sigs) |sig| {
         if (linux.sigaction(sig, &act, null) != 0)
             return error.Failure;
-        std.log.info("registered signal handler for {}", .{ sig });
+        log.info("registered handler for {}", .{ sig });
     }
 }

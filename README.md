@@ -2,7 +2,9 @@
 
 ## Host Prerequisites
 
-- Zig *(shocker)*
+- [Zig](https://ziglang.org/)
+- [Yarn](https://yarnpkg.com/)
+  - [Node](https://nodejs.org/en)
 
 ## Target Prerequisites
 
@@ -33,6 +35,8 @@
     - Hardware/low-level operations, for example, specific hardware interfaces (PWM, I2C, etc.)
   - `lib`
     - Zig-based libraries, for example, OS interaction, math helpers, etc.
+  - `remote`
+    - Utilities for remote operation of the drone, such as the webserver, communication handling, etc.
   - `drone.zig`
     - Global drone control operations, mostly safety
   - `main.zig`

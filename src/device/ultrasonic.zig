@@ -1,7 +1,7 @@
 //! Measures distance using an ultrasonic sensor.
 
 const std = @import("std");
-const log = std.log;
+const log = std.log.scoped(.ultrasonic);
 const time = std.time;
 
 pub const gpio = @import("../hw/gpio.zig");

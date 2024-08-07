@@ -1,7 +1,7 @@
 //! Provides motor (ESC) control.
 
 const std = @import("std");
-const log = std.log;
+const log = std.log.scoped(.motor);
 const Thread = std.Thread;
 const time = std.time;
 
@@ -69,10 +69,10 @@ pub const Motor = struct {
         // Throttle the update rate, so as to ensure lerp is predictable
         if (time.milliTimestamp() - self.prev_update < MIN_UPDATE_INTERVAL)
             return;
-        if ((self.thrust < 0.0 and !std.math.approxEqAbs(f32, self.thrust, 0.0, 0.1)) or self.thrust > 100.0)
+        if (self.thrust < -0.2 or self.thrust > 100.0)
             return error.OutOfRange;
-        // If zero thrust, bypass mapping and set directly to idle
-        if (self.thrust == 0.0) {
+        // If (basically) zero thrust, bypass mapping and set directly to idle
+        if (self.thrust < 0.2) {
             try pwm.setPulsewidth(self.pin, MOTOR_IDLE_PW);
             return;
         }

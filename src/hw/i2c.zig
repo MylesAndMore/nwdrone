@@ -2,7 +2,7 @@
 //! All I2C functions require pigpio to be initialized first.
 
 const std = @import("std");
-const log = std.log;
+const log = std.log.scoped(.i2c);
 const testing = std.testing;
 
 pub const pigpio = @cImport({ @cInclude("pigpio.h"); });

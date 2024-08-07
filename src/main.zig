@@ -1,6 +1,6 @@
 const std = @import("std");
 const linux = std.os.linux;
-const log = std.log;
+const log = std.log.scoped(.main);
 
 // All (relavent) imported namespaces are marked public so as to appear in documentation.
 // This is done in all files.
@@ -13,13 +13,27 @@ pub const pigpio = @cImport({ @cInclude("pigpio.h"); });
 pub const err = @import("lib/err.zig");
 pub const signal = @import("lib/signal.zig");
 
+pub const server  = @import("remote/server.zig");
+
 pub const drone = @import("drone.zig");
 
 pub fn main() !void {
+    // Create our allocator to be used for all heap allocations
+    var gpa = std.heap.GeneralPurposeAllocator(.{
+        .thread_safe = true,
+    }){};
+    defer _ = gpa.deinit();
+    const alloc = gpa.allocator();
+
     // Connect our shutdown function to the SIGINT and SIGTERM signals,
-    // so that the drone can be safely shut down when the process must be terminated
+    // so that the drone can be safely shut down if the process must be terminated
     const sigs = [_]u6{ linux.SIG.INT, linux.SIG.TERM };
     try signal.handle(&sigs, drone.shutdown );
+
+    // Initialize the webserver for remote control
+    // This is done now so that other components can subscribe to the websocket
+    try server.start(alloc);
+    defer server.stop();
 
     // Initialize hardware and system components
     var cfg = pigpio.gpioCfgGetInternals();
@@ -39,13 +53,16 @@ pub fn main() !void {
     defer quad.deinit();
     // -- more hardware initialization can go here --
 
+    std.time.sleep(std.time.ns_per_s * 10);
+    _ = try quad.zeroAttitude();
+
     // Once everything is initialized, we can enter the main loop
     // This is wrapped to catch any errors that make their way up here,
     // so that we can put the drone into a safe state before the program exits
     // The loop will also exit if any external functions call `drone.shutdown()`
     while (drone.safe) {
         loop() catch |e| {
-            log.err("main loop threw error: {}", .{ e });
+            log.err("loop threw error: {}", .{ e });
             break; // Break out of the loop to safely shut down
         };
     }
@@ -55,4 +72,5 @@ pub fn main() !void {
 
 inline fn loop() !void {
     try quad.update();
+    std.time.sleep(std.time.ns_per_ms * 5);
 }

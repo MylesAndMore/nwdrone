@@ -81,27 +81,41 @@ pub fn build(b: *Build) !void {
     // Resolve the internal build options based on the provided platform name
     const platform = b.option([]const u8, "platform", "Platform to build for (rpi0, rpi02, blank for host)");
     const selected_target = try resolveTargetFromName(b, platform);
+    const selected_optimize = b.standardOptimizeOption(.{
+        // Default optimize mode should be ReleaseSafe as it's not that much slower than ReleaseFast
+        .preferred_optimize_mode = .ReleaseSafe
+    });
     const strip = b.option(bool, "strip", "Strip the executable after building") orelse false;
+
+    // httpz (dependency) target
+    const httpz = b.dependency("httpz", .{
+        .target = selected_target,
+        .optimize = selected_optimize,
+    });
 
     // Executable target
     const exe = b.addExecutable(.{
         .name = "nwdrone",
         .root_source_file = b.path("src/main.zig"),
         .target = selected_target,
-        .optimize = b.standardOptimizeOption(.{
-            // Default release mode should be ReleaseSafe as it's not that much slower than ReleaseFast
-            .preferred_optimize_mode = .ReleaseSafe
-        }),
+        .optimize = selected_optimize,
         .link_libc = true,
         .strip = strip,
     });
     // Add C include paths and libraries
+    exe.root_module.addImport("httpz", httpz.module("httpz"));
     const includes = [_][]const u8{ "lib/pixyusb/include", "lib/pigpio/include" };
     addIncludePaths(b, exe, &includes);
     const lib_paths = [_][]const u8{ "lib/pixyusb", "lib/pigpio/" };
     try addLibraryPaths(alloc, b, exe, &lib_paths);
     const libs = [_][]const u8{ "pixyusb", "boost_chrono", "boost_system", "boost_thread", "usb-1.0", "pigpio" };
     forceLinkSystemLibraries(exe, &libs);
+
+    // Add a step to build the frontend
+    const yarn_build = b.addSystemCommand(&[_][]const u8{ "yarn", "build" });
+    yarn_build.setCwd(b.path("www"));
+    exe.step.dependOn(&yarn_build.step);
+    // TODO: can this be run only when www/* changes?
 
     b.installArtifact(exe);
 
@@ -110,9 +124,14 @@ pub fn build(b: *Build) !void {
     const tests = b.addTest(.{
         .root_source_file = b.path("src/tests.zig"),
         .target = b.graph.host,
+        .optimize = selected_optimize,
         .test_runner = b.path("test_runner.zig"),
     });
     const run_tests = b.addRunArtifact(tests);
+    // Also run linter for the frontend during testing
+    const yarn_lint = b.addSystemCommand(&[_][]const u8{ "yarn", "lint" });
+    yarn_lint.setCwd(b.path("www"));
+    test_step.dependOn(&yarn_lint.step);
     test_step.dependOn(&run_tests.step);
 
     // Documentation (generation) step
