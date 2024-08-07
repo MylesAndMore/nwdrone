@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'yarn'
-          cache-dependency-path: '${{github.workspace}}/yarn.lock'
+          cache-dependency-path: '${{github.workspace}}/www/yarn.lock'
 
       - name: Install dependencies
         run: corepack enable && yarn install
