@@ -23,8 +23,15 @@ jobs:
         with:
           version: 0.13.0
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Set up Node enviornment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'yarn'
+          cache-dependency-path: '${{github.workspace}}/yarn.lock'
+
+      - name: Install dependencies
+        run: corepack enable && yarn install
       
       - name: Check cache
         uses: Hanaasagi/zig-action-cache@master
