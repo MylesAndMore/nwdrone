@@ -17,9 +17,9 @@ var gb_alloc: mem.Allocator = undefined; // Global allocator
 /// Static file handler.
 fn staticFile(req: *httpz.Request, res: *httpz.Response) !void {
     // index.html edge case
-    const path = if (mem.eql(u8, req.url.path, "/")) "/index.html" else req.url.path;
+    var path = if (mem.eql(u8, req.url.path, "/")) "/index.html" else req.url.path;
     // Static files should be found in the `dist` directory relative to the executable
-    const file_path = try std.fmt.allocPrint(res.arena, "dist{s}", .{ path });
+    make_path: { const file_path = try std.fmt.allocPrint(res.arena, "dist{s}", .{ path });
     var exe_dir = try std.fs.openDirAbsolute(try std.fs.selfExeDirPathAlloc(res.arena), .{});
     defer exe_dir.close();
     var file = exe_dir.openFile(file_path, .{}) catch |err| {
@@ -28,17 +28,26 @@ fn staticFile(req: *httpz.Request, res: *httpz.Response) !void {
             else => return e,
         };
         if (err == error.FileNotFound) {
-            log.warn("file not found: {s}", .{ realpath });
-            res.status = 404;
-            res.body = "Not Found";
-            return;
+            if (mem.containsAtLeast(u8, path, 1, ".")) {
+                // Path has a dot, so it's probably a file we don't have
+                log.warn("file not found: {s}", .{ realpath });
+                res.status = 404;
+                res.body = "Not Found";
+                return;
+            } else {
+                // Path does not contain a dot
+                // It's probably a routed page, so we can silently serve the index
+                log.info("redirecting request from '{s}' to '/'", .{ path });
+                path = "/index.html";
+                break :make_path;
+            }
         }
         log.err("failed to open file: {s} ({})", .{ realpath, err });
         return err;
     };
     defer file.close();
     res.content_type = httpz.ContentType.forFile(path);
-    res.body = try file.readToEndAlloc(res.arena, 100_000);
+    res.body = try file.readToEndAlloc(res.arena, 100_000); }
 }
 
 /// Websocket upgrade handler.

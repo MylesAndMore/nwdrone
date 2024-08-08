@@ -1,22 +1,25 @@
-interface SocketData {
-    cmp: string; // Component; component that the data applies to, such as `led`, `btn`, etc.
-    dat: Array<{ [key: string]: any }>; // Data; array of key-value pairs, for example {"status":1},{"client":"mom"} etc.
+// The type for data sent/received over the websocket.
+// An equivalent type is defined in the server code (/src/remote/sockets.zig).
+export interface SocketData {
+    // Event that the data applies to, such as `thrust`, `shutdown`, etc.
+    event: string;
+    // Object containing string key-value pairs, for example {"status":"1", "client":"mom"} etc.
+    data: { [key: string]: string };
 }
 
 // Callback type for subscribers to the websocket.
-type Callback = (data: SocketData) => void;
+type Callback = (event: SocketData) => void;
 
 class Socket {
-    private socket: WebSocket | null = null;
-    private subscribers: Map<string, Callback[]> = new Map(); // Map of component names to subscriber callbacks
+    public isOpen = false; // Whether the socket is currently open
+    private socket: WebSocket | null = null; // Backing websocket instance
+    private subscribers: Map<string, Callback[]> = new Map(); // Map of event names to subscriber callbacks
 
     /**
      * Open a websocket connection.
-     * @param onOpen callback to run if the connection successfully opens
      * @param url url to connect to, defaults to the current host
      */
     open(
-        onOpen?: () => void,
         url = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`,
     ): void {
         if (this.socket) {
@@ -25,18 +28,19 @@ class Socket {
         this.socket = new WebSocket(url);
 
         this.socket.onopen = () => {
-            if (onOpen) {
-                onOpen();
-            }
+            this.isOpen = true;
         };
 
         this.socket.onmessage = event => {
+            console.log(`rx: ${event.data as string}`);
             const data = JSON.parse(event.data as string) as SocketData;
             this.notifySubscribers(data);
         };
 
         this.socket.onclose = () => {
+            this.isOpen = false;
             this.socket = null;
+            this.subscribers.clear(); // Unsubscribe all subscribers
         };
 
         this.socket.onerror = error => {
@@ -59,6 +63,7 @@ class Socket {
      */
     send(data: SocketData): void {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            console.log(`tx: ${JSON.stringify(data)}`);
             this.socket.send(JSON.stringify(data));
         } else {
             console.error("socket is not open");
@@ -66,27 +71,27 @@ class Socket {
     }
 
     /**
-     * Register a callback to be called when data is received for a specific component.
-     * @param component component name to subscribe to
+     * Register a callback to be called when data is received for a specific event.
+     * @param event event name to subscribe to
      * @param callback callback to run when data is received
      */
-    subscribe(component: string, callback: Callback): void {
-        if (!this.subscribers.has(component)) {
-            this.subscribers.set(component, []);
+    subscribe(event: string, callback: Callback): void {
+        if (!this.subscribers.has(event)) {
+            this.subscribers.set(event, []);
         }
-        this.subscribers.get(component)?.push(callback);
+        this.subscribers.get(event)?.push(callback);
     }
 
     /**
-     * Unregister a callback for a specific component.
-     * @param component component name to unsubscribe from
+     * Unregister a callback for a specific event.
+     * @param event event name to unsubscribe from
      * @param callback callback to remove
      */
-    unsubscribe(component: string, callback: Callback): void {
-        const callbacks = this.subscribers.get(component);
+    unsubscribe(event: string, callback: Callback): void {
+        const callbacks = this.subscribers.get(event);
         if (callbacks) {
             this.subscribers.set(
-                component,
+                event,
                 callbacks.filter(cb => cb !== callback),
             );
         }
@@ -97,7 +102,7 @@ class Socket {
      * @param data new data to send to subscribers
      */
     private notifySubscribers(data: SocketData): void {
-        const callbacks = this.subscribers.get(data.cmp);
+        const callbacks = this.subscribers.get(data.event);
         if (callbacks) {
             callbacks.forEach(callback => callback(data));
         }

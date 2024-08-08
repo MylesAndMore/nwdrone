@@ -1,8 +1,12 @@
 import { render } from "preact";
+import { useEffect } from "preact/hooks";
 import { Link, Route, Switch } from "wouter-preact";
 
-import Index from "./pages/Index";
+import Actions from "./pages/Actions";
 import Dashboard from "./pages/Dashboard";
+import Index from "./pages/Index";
+
+import { socket } from "./helpers/socket";
 
 import "./style.css";
 
@@ -27,10 +31,17 @@ function NoMatch() {
 }
 
 function App() {
+    useEffect(() => {
+        // Open socket connection on page load, close on unload
+        socket.open();
+        return () => socket.close();
+    }, []);
+
     return (
         <main class={"w-full h-full"}>
             <Switch>
                 <Route path="/">{() => <Index />}</Route>
+                <Route path="/actions">{() => <Actions />}</Route>
                 <Route path="/dashboard">{() => <Dashboard />}</Route>
                 <Route>{() => <NoMatch />}</Route>
             </Switch>

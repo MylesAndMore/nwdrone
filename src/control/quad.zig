@@ -69,18 +69,6 @@ fn setThrust(thrust: f32) void {
         m.thrust = thrust;
 }
 
-/// Handle a remote thrust event.
-fn thrustEvent(data: sockets.Data) void {
-    var thrust: f32 = 0.0;
-    const val = data.dat.array.items[0].object.get("value").?;
-    switch (val) {
-        .float => thrust = @floatCast(val.float),
-        .integer => thrust = @floatFromInt(val.integer),
-        else => log.err("invalid thrust value received: {}", .{ val }),
-    }
-    base = thrust;
-}
-
 /// Initialize all quadcopter motors.
 /// This function blocks for a significant amount of time (~4s) during
 /// initialization.
@@ -94,8 +82,6 @@ pub fn init() !void {
     for (motors) |m|
         try m.startUpdateAsync();
     log.info("all motors initialized and updating", .{});
-    // Subscribe to socket thrust events
-    try sockets.subscribe("thrust", thrustEvent);
 }
 
 /// Deinitialize all quadcopter motors.

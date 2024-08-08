@@ -6,13 +6,17 @@
 import preact from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { useSwipe } from "../helpers/hooks";
-import { PaperAirplaneOutline } from "preact-heroicons";
+import {
+    AdjustmentsVerticalOutline,
+    PaperAirplaneOutline,
+} from "preact-heroicons";
 
 import Sidebar, { SidebarNavigation } from "./Sidebar";
 import Spinner from "./Spinner";
 
 const sidebarNav: SidebarNavigation[] = [
     { name: "Dashboard", to: "/dashboard", icon: PaperAirplaneOutline },
+    { name: "Actions", to: "/actions", icon: AdjustmentsVerticalOutline },
 ];
 
 interface ContentBlockProps {

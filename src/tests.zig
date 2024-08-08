@@ -7,4 +7,5 @@ comptime {
     _ = @import("hw/pwm.zig");
     _ = @import("lib/math3d.zig");
     _ = @import("lib/pid.zig");
+    _ = @import("remote/sockets.zig");
 }

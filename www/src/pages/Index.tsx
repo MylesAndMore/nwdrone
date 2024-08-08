@@ -8,10 +8,19 @@ import { socket } from "../helpers/socket";
 export default function Index() {
     const [loading, setLoading] = useState(true);
 
+    // Continuously check if the socket is open
+    const checkSocketOpen = () => {
+        if (socket.isOpen) {
+            setLoading(false);
+        } else {
+            setTimeout(checkSocketOpen, 500);
+        }
+    };
+
     useEffect(() => {
-        // Try opening socket on page load to make sure it's working
+        // Wait until socket successfully opens (the opening process is started in main.tsx)
         // If successful, we will redirect to dashboard
-        socket.open(() => setLoading(false));
+        checkSocketOpen();
     }, []);
 
     return (

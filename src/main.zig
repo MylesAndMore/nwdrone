@@ -40,7 +40,9 @@ pub fn main() !void {
     defer server.stop();
     // Subscribe to kill and shutdown events so the drone/system can be safely shut down
     try sockets.subscribe("kill", killEvent);
+    defer sockets.unsubscribe("kill");
     try sockets.subscribe("shutdown", shutdownEvent);
+    defer sockets.unsubscribe("shutdown");
 
     // Initialize hardware and system components
     var cfg = pigpio.gpioCfgGetInternals();
@@ -59,9 +61,6 @@ pub fn main() !void {
     try quad.init();
     defer quad.deinit();
     // -- more hardware initialization can go here --
-
-    std.time.sleep(std.time.ns_per_s * 10);
-    _ = try quad.zeroAttitude();
 
     // Once everything is initialized, we can enter the main loop
     // This is wrapped to catch any errors that make their way up here,
@@ -83,10 +82,12 @@ inline fn loop() !void {
     std.time.sleep(std.time.ns_per_ms * 5);
 }
 
-fn killEvent(_: sockets.Data) void {
+/// Event handler for the 'kill' event.
+fn killEvent(_: sockets.SocketData) void {
     drone.shutdown();
 }
 
-fn shutdownEvent(_: sockets.Data) void {
+/// Event handler for the 'shutdown' event.
+fn shutdownEvent(_: sockets.SocketData) void {
     drone.shutdownHost();
 }
