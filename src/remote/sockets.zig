@@ -7,8 +7,12 @@ const json = std.json;
 const log = std.log.scoped(.sockets);
 const mem = std.mem;
 const testing = std.testing;
+const time = std.time;
 const httpz = @import("httpz");
 const websocket = httpz.websocket;
+
+const MIN_SOCKET_UPDATE_RATE = 20; // Minimum rate at which to update the websocket, in Hz
+const MIN_SOCKET_UPDATE_INTERVAL = time.ms_per_s / MIN_SOCKET_UPDATE_RATE;
 
 // The type for data sent/received over the websocket.
 // An equivalent type is defined in the client code (/www/src/helpers/socket.ts).
@@ -18,7 +22,7 @@ pub const SocketData = struct {
     // Object containing string key-value pairs, for example {"status":"1", "client":"mom"} etc.
     data: json.ArrayHashMap([]const u8),
 
-    /// Initialize a new instance of DataZ.
+    /// Initialize a new instance of SocketData.
     pub fn init() !@This() {
         return @This() {
             .event = undefined,
@@ -26,22 +30,32 @@ pub const SocketData = struct {
         };
     }
 
-    /// Deinitialize an instance of Data.
+    /// Deinitialize an instance of SocketData.
     /// The `alloc` passed in should be the same `Allocator` that was used to manage `dat`.
     pub fn deinit(self: *@This(), alloc: mem.Allocator) void {
         self.data.deinit(alloc);
     }
 };
 
+// Type of event to subscribe to.
+pub const EventType = enum {
+    Receive,
+    Dispatch,
+};
+
+// Callback type for receivers to the websocket.
+// The lifetime of `data` is not guaranteed to be longer than the callback
+// invocation, so it should be copied if needed.
+pub const ReceiveCallback = *const fn(event: SocketData) void;
+// Callback type for dispatchers to the websocket.
+pub const DispatchCallback = *const fn(send: SendFn) anyerror!void;
+// Function type for sending data over the websocket.
+pub const SendFn = *const fn(data: SocketData) anyerror!void;
+
 // Arbitrary context for the websocket handler.
 pub const Context = struct {
     alloc: mem.Allocator,
 };
-
-// Callback type for subscribers to the websocket.
-// The lifetime of `data` is not guaranteed to be longer than the callback
-// invocation, so it should be copied if needed.
-const Callback = *const fn(event: SocketData) void;
 
 // Websocket handler, responsible for processing messages sent over the websocket.
 // httpz will create an instance of this handler for each websocket connection.
@@ -62,13 +76,12 @@ pub const Handler = struct {
 
     /// Is run when a message is received over the websocket.
     pub fn handle(self: *const @This(), message: websocket.Message) !void {
-        log.info("rx {s}", .{ message.data });
         const parsed = json.parseFromSlice(SocketData, self.ctx.alloc, message.data, .{}) catch |err| {
             log.warn("failed to parse message '{s}' ({})", .{ message.data, err });
             return err;
         };
         defer parsed.deinit();
-        notifySubscribers(parsed.value);
+        notify_receivers(parsed.value);
     }
 
     /// Write data to the websocket connection.
@@ -80,57 +93,98 @@ pub const Handler = struct {
     }
 
     /// Is run when the websocket connection is closed.
-    pub fn close(_: *@This()) void {
-        log.info("connection closed", .{});
+    pub fn close(self: *@This()) void {
+        // Remove this handler from the list of handlers
+        for (handlers.items, 0..) |handler, i| {
+            if (std.meta.eql(handler, self.*)) {
+                _ = handlers.swapRemove(i);
+                log.info("connection closed", .{});
+                return;
+            }
+        }
+        log.warn("failed to close connection", .{});
     }
 };
 
 var handlers: std.ArrayList(Handler) = undefined; // List of websocket handlers
 // To match the client-side implementation, this hashmap should technically
-// contain an ArrayList of Callbacks and not just a single Callback,
+// contain an ArrayList of *Callbacks and not just a single *Callback,
 // but I spent a few too many hours trying to get that to work and I'd rather
 // focus on more useful things.
-var subscribers: std.StringHashMap(Callback) = undefined; // Hashmap of event names to subscriber callbacks
+var receivers: std.StringHashMap(ReceiveCallback) = undefined; 
+var dispatchers: std.StringArrayHashMap(DispatchCallback) = undefined;
+var last_send: i64 = 0; // Last time data was sent (via update())
 
 /// Initialize the websocket backend.
 pub fn init(alloc: mem.Allocator) void {
     log.info("initializing backend", .{});
     handlers = @TypeOf(handlers).init(alloc);
-    subscribers = @TypeOf(subscribers).init(alloc);
+    receivers = @TypeOf(receivers).init(alloc);
+    dispatchers = @TypeOf(dispatchers).init(alloc);
 }
 
 /// Deinitialize the websocket backend.
 pub fn deinit() void {
     log.info("deinitializing backend", .{});
     handlers.deinit();
-    subscribers.deinit();
+    receivers.deinit();
+    dispatchers.deinit();
 }
 
-/// Send data to all open websocket connections.
-pub fn send(data: SocketData) !void {
-    for (handlers.items) |handler|
-        try handler.write(data);
-}
-
-/// Register a callback to be called when data is received for a specific event.
+/// Register a callback to be called when data is received/dispatch is needed
+/// for a specific event.
 /// Only one callback can be registered per event.
-pub fn subscribe(event: []const u8, callback: Callback) !void {
-    try subscribers.put(event, callback);
-    log.info("subscriber registered for '{s}'", .{ event });
+pub fn subscribe(event: []const u8, comptime callback: anytype, comptime on: EventType) !void {
+    switch (on) {
+        .Receive => {
+            try receivers.put(event, callback);
+            log.info("receiver registered for event '{s}'", .{ event });
+        },
+        .Dispatch => {
+            try dispatchers.put(event, callback);
+            log.info("dispatcher registered for event '{s}'", .{ event });
+        },
+    }
 }
 
 /// Unregister a callback for a specific event.
 pub fn unsubscribe(event: []const u8) void {
-    if (!subscribers.remove(event)) {
-        log.warn("no subscriber to unregister for '{s}'", .{ event });
+    if (receivers.remove(event) or dispatchers.swapRemove(event)) {
+        log.info("event '{s}' unregistered", .{ event });
         return;
     }
-    log.info("subscriber unregistered for '{s}'", .{ event });
+    log.warn("nothing to unregister for event '{s}'", .{ event });
 }
 
-/// Notify all relavent subscribers of new data.
-fn notifySubscribers(data: SocketData) void {
-    if (subscribers.get(data.event)) |callback|
+/// Update the websocket backend.
+/// This function will invoke, if necessary, all registered dispatchers
+/// which may block for a significant period of time.
+pub fn update() void {
+    if (time.milliTimestamp() - last_send < MIN_SOCKET_UPDATE_INTERVAL)
+        return;
+
+    for (dispatchers.values()) |callback| {
+        callback(send) catch |err| {
+            log.warn("unhandled exception in dispatch callback: {}", .{ err });
+            continue;
+        };
+    }
+    last_send = time.milliTimestamp();
+}
+// If you were wondering, update() could easily be on another thread.
+// It's not because I'm too lazy to implement thread safety in all the modules
+// that issue dispatches.
+// The CPU usage is also very high if I thread this for some reason.
+
+/// Send data to all open websocket connections.
+fn send(data: SocketData) !void {
+    for (0..handlers.items.len) |i|
+        try handlers.items[i].write(data);
+}
+
+/// Notify all relavent receivers of new data.
+fn notify_receivers(data: SocketData) void {
+    if (receivers.get(data.event)) |callback|
         callback(data);
 }
 

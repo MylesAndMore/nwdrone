@@ -39,9 +39,9 @@ pub fn main() !void {
     try server.start(alloc);
     defer server.stop();
     // Subscribe to kill and shutdown events so the drone/system can be safely shut down
-    try sockets.subscribe("kill", killEvent);
+    try sockets.subscribe("kill", killEvent, .Receive);
     defer sockets.unsubscribe("kill");
-    try sockets.subscribe("shutdown", shutdownEvent);
+    try sockets.subscribe("shutdown", shutdownEvent, .Receive);
     defer sockets.unsubscribe("shutdown");
 
     // Initialize hardware and system components
@@ -53,12 +53,13 @@ pub fn main() !void {
         return e;
     };
     defer pigpio.gpioTerminate();
-    pixy.init() catch |e| {
+    pixy.init(alloc) catch |e| {
         log.err("failed to connect to Pixy camera, are you sure it's plugged in/does this user have USB privileges?", .{});
         return e;
     };
     defer pixy.deinit();
-    try quad.init();
+    try pixy.setLed(255, 255, 255, 1.0); // Improve visibility by 0.000001%
+    try quad.init(alloc);
     defer quad.deinit();
     // -- more hardware initialization can go here --
 
@@ -79,15 +80,15 @@ pub fn main() !void {
 /// Main control loop for the drone.
 inline fn loop() !void {
     try quad.update();
-    std.time.sleep(std.time.ns_per_ms * 5);
+    sockets.update();
 }
 
-/// Event handler for the 'kill' event.
+/// Event receiver for the 'kill' event.
 fn killEvent(_: sockets.SocketData) void {
     drone.shutdown();
 }
 
-/// Event handler for the 'shutdown' event.
+/// Event receiver for the 'shutdown' event.
 fn shutdownEvent(_: sockets.SocketData) void {
     drone.shutdownHost();
 }

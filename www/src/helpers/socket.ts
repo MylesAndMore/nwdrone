@@ -32,7 +32,6 @@ class Socket {
         };
 
         this.socket.onmessage = event => {
-            console.log(`rx: ${event.data as string}`);
             const data = JSON.parse(event.data as string) as SocketData;
             this.notifySubscribers(data);
         };
@@ -63,7 +62,6 @@ class Socket {
      */
     send(data: SocketData): void {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            console.log(`tx: ${JSON.stringify(data)}`);
             this.socket.send(JSON.stringify(data));
         } else {
             console.error("socket is not open");

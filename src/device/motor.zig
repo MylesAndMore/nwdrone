@@ -7,6 +7,8 @@ const time = std.time;
 
 pub const pwm = @import("../hw/pwm.zig");
 
+pub const math = @import("../lib/math.zig");
+
 pub const drone = @import("../drone.zig");
 
 const MotorError = error{
@@ -19,24 +21,6 @@ const MOTOR_IDLE_PW = 900.0; // Pulsewidth at which the motor is idle/not moving
 
 const MIN_UPDATE_INTERVAL = 10; // Minimum time between motor updates (ms)
 const MOTOR_LERP_BY = 0.1; // Linear interpolation factor for thrust changes
-
-/// Map a value `x` from range `in_min` to `in_max` to range `out_min` to `out_max`.
-fn map(x: anytype, in_min: anytype, in_max: anytype, out_min: anytype, out_max: anytype) @TypeOf(x, in_min, in_max, out_min, out_max) {
-    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-/// Update `motor` while its `update_async` field is `true`, handling any errors.
-/// This is intended to be spawned as a separate thread.
-fn motorThread(motor: *Motor) void {
-    while (@atomicLoad(bool, &motor.update_async, .seq_cst)) {
-        motor.update() catch |err| {
-            log.err("failed to update motor! ({})", .{ err });
-            motor.kill();
-            drone.shutdown();
-        };
-        time.sleep(time.ns_per_ms * MIN_UPDATE_INTERVAL); // Sleep until next update
-    }
-}
 
 // A single motor, controlled by an ESC connected to a GPIO pin.
 pub const Motor = struct {
@@ -80,7 +64,7 @@ pub const Motor = struct {
         const target = std.math.lerp(self.prev_target, self.thrust, MOTOR_LERP_BY);
         self.prev_target = target;
         // Map thrust to pulsewidth and set
-        const pulsewidth = map(target, 0.0, 100.0, self.pw_min, self.pw_max);
+        const pulsewidth = math.map(target, 0.0, 100.0, self.pw_min, self.pw_max);
         try pwm.setPulsewidth(self.pin, pulsewidth);
         self.prev_update = time.milliTimestamp();
     }
@@ -110,9 +94,23 @@ pub const Motor = struct {
         self.stopUpdateAsync();
         // Wait a bit for the thread to stop to make sure the following
         // setDuty doesn't get overwritten by the thread
+        // TODO: better way to do this?
         time.sleep(time.ns_per_ms * 5);
         pwm.setDuty(self.pin, 0) catch |err| {
             log.err("failed to kill motor! ({})", .{ err });
         };
     }
 };
+
+/// Update `motor` while its `update_async` field is `true`, handling any errors.
+/// This is intended to be spawned as a separate thread.
+fn motorThread(motor: *Motor) void {
+    while (@atomicLoad(bool, &motor.update_async, .seq_cst)) {
+        motor.update() catch |err| {
+            log.err("failed to update motor! ({})", .{ err });
+            motor.kill();
+            drone.shutdown();
+        };
+        time.sleep(time.ns_per_ms * MIN_UPDATE_INTERVAL); // Sleep until next update
+    }
+}

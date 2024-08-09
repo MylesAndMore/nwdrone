@@ -6250,6 +6250,7 @@ __metadata:
     prettier: "npm:^3.3.3"
     prettier-eslint: "npm:^16.3.0"
     tailwindcss: "npm:^3.4.7"
+    three: "npm:^0.167.1"
     typescript: "npm:^5.5.4"
     vite: "npm:^5.3.5"
     wouter-preact: "npm:^3.3.1"
@@ -6800,6 +6801,13 @@ __metadata:
   dependencies:
     any-promise: "npm:^1.0.0"
   checksum: 10c0/f375aeb2b05c100a456a30bc3ed07ef03a39cbdefe02e0403fb714b8c7e57eeaad1a2f5c4ecfb9ce554ce3db9c2b024eba144843cd9e344566d9fcee73b04767
+  languageName: node
+  linkType: hard
+
+"three@npm:^0.167.1":
+  version: 0.167.1
+  resolution: "three@npm:0.167.1"
+  checksum: 10c0/3040ffb013b6bb063d96ecff51acc6e6390a92d616a0d0db39550ad516eb0be8e50342f0c2c97892fbd983d03c7319f44b56bde881e1f3e6bc612d559b1276ea
   languageName: node
   linkType: hard
 
