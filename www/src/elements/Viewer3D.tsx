@@ -41,9 +41,13 @@ const Viewer3D: preact.FunctionComponent = () => {
             }
 
             const { roll, pitch, yaw } = event.data;
-            cubeRef.current.rotation.x = THREE.MathUtils.degToRad(pitch);
-            cubeRef.current.rotation.y = THREE.MathUtils.degToRad(yaw);
-            cubeRef.current.rotation.z = THREE.MathUtils.degToRad(roll);
+            cubeRef.current.rotation.x = THREE.MathUtils.degToRad(
+                -Number(roll),
+            );
+            cubeRef.current.rotation.y = THREE.MathUtils.degToRad(
+                Number(pitch),
+            );
+            cubeRef.current.rotation.z = THREE.MathUtils.degToRad(Number(yaw));
 
             renderer.render(scene, camera);
         });

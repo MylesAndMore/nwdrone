@@ -84,7 +84,7 @@ fn orientEvent(send: sockets.SendFn) !void {
     var p_buf: FmtStr = undefined;
     var y_buf: FmtStr = undefined;
     // Roll is reversed for visualization purposes
-    try orient_data.data.map.put(alloc, "roll", try fmt.formatFloat(&r_buf, -angles[0], FmtOpts));
+    try orient_data.data.map.put(alloc, "roll", try fmt.formatFloat(&r_buf, angles[0], FmtOpts));
     try orient_data.data.map.put(alloc, "pitch", try fmt.formatFloat(&p_buf, angles[1], FmtOpts));
     try orient_data.data.map.put(alloc, "yaw", try fmt.formatFloat(&y_buf, angles[2], FmtOpts));
     
