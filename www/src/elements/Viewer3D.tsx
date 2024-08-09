@@ -20,7 +20,8 @@ const Viewer3D: preact.FunctionComponent = () => {
         cameraRef.current = camera;
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(300, 300); // You can adjust this to fit your layout
-        containerRef.current?.appendChild(renderer.domElement);
+        const container = containerRef.current;
+        container?.appendChild(renderer.domElement);
         rendererRef.current = renderer;
 
         // Add a wireframe cube to the scene
@@ -49,8 +50,8 @@ const Viewer3D: preact.FunctionComponent = () => {
 
         return () => {
             // Clean up on unmount
-            if (containerRef.current) {
-                containerRef.current.removeChild(renderer.domElement);
+            if (container) {
+                container.removeChild(renderer.domElement);
             }
         };
     }, []);

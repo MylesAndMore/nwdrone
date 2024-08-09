@@ -20,7 +20,7 @@
         "@babel/plugin-transform-react-jsx-development": "7.24.7",
         "@preact/preset-vite": "^2.9.0",
         "@types/node": "^22.1.0",
-        "@types/websocket": "^1.0.10",
+        "@types/three": "^0.167.1",
         "@typescript-eslint/eslint-plugin": "^8.0.0",
         "@typescript-eslint/parser": "^8.0.0",
         "autoprefixer": "^10.4.20",
