@@ -11,7 +11,7 @@ const time = std.time;
 const httpz = @import("httpz");
 const websocket = httpz.websocket;
 
-const MIN_SOCKET_UPDATE_RATE = 20; // Minimum rate at which to update the websocket, in Hz
+const MIN_SOCKET_UPDATE_RATE = 2; // Minimum rate at which to update the websocket, in Hz
 const MIN_SOCKET_UPDATE_INTERVAL = time.ms_per_s / MIN_SOCKET_UPDATE_RATE;
 
 // The type for data sent/received over the websocket.
@@ -46,7 +46,7 @@ pub const EventType = enum {
 // Callback type for receivers to the websocket.
 // The lifetime of `data` is not guaranteed to be longer than the callback
 // invocation, so it should be copied if needed.
-pub const ReceiveCallback = *const fn(event: SocketData) void;
+pub const ReceiveCallback = *const fn(event: SocketData) anyerror!void;
 // Callback type for dispatchers to the websocket.
 pub const DispatchCallback = *const fn(send: SendFn) anyerror!void;
 // Function type for sending data over the websocket.
@@ -184,8 +184,11 @@ fn send(data: SocketData) !void {
 
 /// Notify all relavent receivers of new data.
 fn notify_receivers(data: SocketData) void {
-    if (receivers.get(data.event)) |callback|
-        callback(data);
+    if (receivers.get(data.event)) |callback| {
+        callback(data) catch |err| {
+            log.warn("unhandled exception in receive callback: {}", .{ err });
+        };
+    }
 }
 
 test "data serialize" {

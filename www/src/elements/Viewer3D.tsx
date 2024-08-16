@@ -20,6 +20,7 @@ const Viewer3D: preact.FunctionComponent = () => {
         cameraRef.current = camera;
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(300, 300); // You can adjust this to fit your layout
+        renderer.setClearColor(0x000000, 0); // Set background to be transparent
         const container = containerRef.current;
         container?.appendChild(renderer.domElement);
         rendererRef.current = renderer;
@@ -31,6 +32,7 @@ const Viewer3D: preact.FunctionComponent = () => {
             wireframe: true,
         });
         const cube = new THREE.Mesh(geometry, material);
+        cube.scale.set(4, 4, 2); // Scale the cube to be twice its original size
         scene.add(cube);
         cubeRef.current = cube;
 
@@ -42,10 +44,10 @@ const Viewer3D: preact.FunctionComponent = () => {
 
             const { roll, pitch, yaw } = event.data;
             cubeRef.current.rotation.x = THREE.MathUtils.degToRad(
-                -Number(roll),
+                -Number(pitch),
             );
             cubeRef.current.rotation.y = THREE.MathUtils.degToRad(
-                Number(pitch),
+                -Number(roll),
             );
             cubeRef.current.rotation.z = THREE.MathUtils.degToRad(Number(yaw));
 

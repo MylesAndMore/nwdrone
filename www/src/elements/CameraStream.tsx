@@ -6,7 +6,19 @@ import { socket } from "../helpers/socket";
 const FRAME_WIDTH = 320;
 const FRAME_HEIGHT = 200;
 
+// See lib/pixyusb/include/pixy.h
+interface Block {
+    type: number;
+    signature: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    angle: number;
+}
+
 interface CameraStreamProps {
+    displayMode?: "bayer" | "rgb";
     displayFps?: boolean;
 }
 
@@ -88,7 +100,34 @@ function interpolateBayer(
     return { r, g, b };
 }
 
+/**
+ * Process RGB frame data.
+ * @param width width of the frame
+ * @param height height of the frame
+ * @param raw raw RGB data of the frame
+ * @returns ImageData object for rendering
+ */
+function processRgbData(
+    width: number,
+    height: number,
+    raw: Uint8Array,
+): ImageData {
+    const imageData = new ImageData(width, height);
+    for (let i = 0; i < raw.length; i += 3) {
+        const r = raw[i];
+        const g = raw[i + 1];
+        const b = raw[i + 2];
+        const index = (i / 3) * 4;
+        imageData.data[index] = r;
+        imageData.data[index + 1] = g;
+        imageData.data[index + 2] = b;
+        imageData.data[index + 3] = 255; // Alpha channel
+    }
+    return imageData;
+}
+
 const CameraStream: preact.FunctionComponent<CameraStreamProps> = ({
+    displayMode = "bayer",
     displayFps = false,
 }) => {
     const canvas = useRef<HTMLCanvasElement>(null);
@@ -109,30 +148,54 @@ const CameraStream: preact.FunctionComponent<CameraStreamProps> = ({
 
             const rawData = base64ToUint8Array(event.data.raw);
             const imageData = ctx.createImageData(FRAME_WIDTH, FRAME_HEIGHT);
-            const rgbData = new Uint8ClampedArray(
-                FRAME_WIDTH * FRAME_HEIGHT * 4,
-            ); // RGBA
-            // Interpolate RGB pixel data
-            for (let y = 0; y < FRAME_HEIGHT; y++) {
-                for (let x = 0; x < FRAME_WIDTH; x++) {
-                    const pixelIndex = y * FRAME_WIDTH + x;
-                    const { r, g, b } = interpolateBayer(
+            switch (displayMode) {
+                case "bayer": {
+                    const rgbData = new Uint8ClampedArray(
+                        FRAME_WIDTH * FRAME_HEIGHT * 4,
+                    ); // RGBA
+                    // Interpolate RGB pixel data
+                    for (let y = 0; y < FRAME_HEIGHT; y++) {
+                        for (let x = 0; x < FRAME_WIDTH; x++) {
+                            const pixelIndex = y * FRAME_WIDTH + x;
+                            const { r, g, b } = interpolateBayer(
+                                FRAME_WIDTH,
+                                x,
+                                y,
+                                pixelIndex,
+                                rawData,
+                            );
+                            const rgbIndex = pixelIndex * 4;
+                            rgbData[rgbIndex] = r;
+                            rgbData[rgbIndex + 1] = g;
+                            rgbData[rgbIndex + 2] = b;
+                            rgbData[rgbIndex + 3] = 255; // Alpha channel
+                        }
+                    }
+                    // Render on canvas
+                    imageData.data.set(rgbData);
+                    ctx.putImageData(imageData, 0, 0);
+                    break;
+                }
+                case "rgb": {
+                    const rgbData = processRgbData(
                         FRAME_WIDTH,
-                        x,
-                        y,
-                        pixelIndex,
+                        FRAME_HEIGHT,
                         rawData,
                     );
-                    const rgbIndex = pixelIndex * 4;
-                    rgbData[rgbIndex] = r;
-                    rgbData[rgbIndex + 1] = g;
-                    rgbData[rgbIndex + 2] = b;
-                    rgbData[rgbIndex + 3] = 255; // Alpha channel
+                    ctx.putImageData(rgbData, 0, 0);
+                    break;
                 }
             }
-            // Render on canvas
-            imageData.data.set(rgbData);
-            ctx.putImageData(imageData, 0, 0);
+
+            // Draw blocks as boxes
+            const blocks = JSON.parse(event.data.blocks) as Block[];
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 2;
+            blocks.forEach(block => {
+                const x = block.x - block.width / 2;
+                const y = block.y - block.height / 2;
+                ctx.strokeRect(x, y, block.width, block.height);
+            });
 
             // Calculate and display FPS
             frameCount++;

@@ -57,7 +57,7 @@ const REG_I2C_SLV4_REG = 0x32;
 const REG_I2C_SLV4_DO = 0x33;
 const REG_I2C_SLV4_CTRL = 0x34;
 const REG_I2C_SLV4_DI = 0x35;
-const REG_I2C_MST_STATUS =0x36;
+const REG_I2C_MST_STATUS = 0x36;
 const REG_INT_PIN_CFG = 0x37;
 const REG_INT_ENABLE = 0x38;
 const REG_INT_STATUS = 0x3A;
@@ -105,9 +105,9 @@ pub fn init() !void {
     }
     log.info("uploading mpu6050 dmp firmware (this might take a bit)", .{});
     try configure();
-    try set_accel_offsets(ACCEL_OFFSETS);
-    try set_gyro_offsets(GYRO_OFFSETS);
-    try set_dmp_enabled(true);
+    try setAccelOffets(ACCEL_OFFSETS);
+    try setGyroOffets(GYRO_OFFSETS);
+    try setDmpEnabled(true);
     log.info("mpu6050 ready", .{});
 }
 
@@ -119,18 +119,18 @@ pub fn deinit() void {
 
 /// Get the current quaternion from the device.
 /// This function will return null if no packet is currently available.
-pub fn get_quaternion() !?math3d.Quaternion {
-    if (try get_fifo_count() < DMP_PACKET_SIZE)
+pub fn getQuaternion() !?math3d.Quaternion {
+    if (try getFifoCount() < DMP_PACKET_SIZE)
         return null; // No packet available
-    if (try get_fifo_count() == 1024) {
-        try clear_fifo(); // Overflow
+    if (try getFifoCount() == 1024) {
+        try clearFifo(); // Overflow
         return null;
     }
 
     var packet: [DMP_PACKET_SIZE]u8 = undefined;
-    try get_fifo_bytes(packet[0..]);
+    try getFifoBytes(packet[0..]);
 
-    return math3d.Quaternion {
+    return math3d.Quaternion{
         .w = @as(f32, @floatFromInt((@as(i16, packet[0]) << 8) | packet[1])) / 16384.0,
         .x = @as(f32, @floatFromInt((@as(i16, packet[4]) << 8) | packet[5])) / 16384.0,
         .y = @as(f32, @floatFromInt((@as(i16, packet[8]) << 8) | packet[9])) / 16384.0,
@@ -154,32 +154,32 @@ fn configure() !void {
     try mpu6050.writeByte(REG_PWR_MGMT_1, 0x81); // Reset device and wait for it to come back up
     time.sleep(time.ns_per_ms * 100);
     // write_bits(REG_USER_CTRL, 2, 3, 0b111);
-	try mpu6050.writeByte(REG_USER_CTRL, 0x07); // Full SIGNAL_PATH_RESET with another 100ms delay
+    try mpu6050.writeByte(REG_USER_CTRL, 0x07); // Full SIGNAL_PATH_RESET with another 100ms delay
     time.sleep(time.ns_per_ms * 100);
     try mpu6050.writeByte(REG_PWR_MGMT_1, 0x01); // Clock source select PLL with X axis gyroscope reference
     try mpu6050.writeByte(REG_INT_ENABLE, 0x00); // Disable all interrupts
     try mpu6050.writeByte(REG_FIFO_EN, 0x00); // Disable FIFO (use DMP's FIFO instead)
     try mpu6050.writeByte(REG_ACCEL_CONFIG, 0x00); // Set accel FSR to 2G
-	try mpu6050.writeByte(REG_INT_PIN_CFG, 0x80); // Set interrupt pin active low and clear on any read
+    try mpu6050.writeByte(REG_INT_PIN_CFG, 0x80); // Set interrupt pin active low and clear on any read
     try mpu6050.writeByte(REG_PWR_MGMT_1, 0x01); // Clock source select (again?)
-	try mpu6050.writeByte(REG_SMPLRT_DIV, 0x04); // Set sample rate to 200Hz ( Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV))
-	try mpu6050.writeByte(REG_CONFIG, 0x01); // Set DLPF to 188Hz
-	try write_memory_block(DMP_FIRMWARE[0..], true); // Load DMP firmware
+    try mpu6050.writeByte(REG_SMPLRT_DIV, 0x04); // Set sample rate to 200Hz ( Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV))
+    try mpu6050.writeByte(REG_CONFIG, 0x01); // Set DLPF to 188Hz
+    try write_memory_block(DMP_FIRMWARE[0..], true); // Load DMP firmware
     try mpu6050.writeWords(REG_DMP_CFG_1, &[_]u16{0x0400}); // Set DMP program start address
     try mpu6050.writeByte(REG_GYRO_CONFIG, 0x18); // Set gyro FSR to 2000dps
     try mpu6050.writeByte(REG_USER_CTRL, 0xC0); // Enable and reset FIFO
     try mpu6050.writeByte(REG_INT_ENABLE, 0x02); // Enable DMP interrupt (RAW_DMP_INT_EN)
     try mpu6050.writeBit(REG_USER_CTRL, 2, 1); // Reset FIFO again
-    try set_dmp_enabled(false);
+    try setDmpEnabled(false);
 }
 
 /// Set the currently active memory bank.
-inline fn set_memory_bank(bank: u8) !void {
+inline fn setMemoryBank(bank: u8) !void {
     try mpu6050.writeByte(REG_BANK_SEL, bank & 0x1F);
 }
 
 /// Set the memory start address for reading and writing.
-inline fn set_memory_start_address(addr: u8) !void {
+inline fn setMemoryStartAddress(addr: u8) !void {
     try mpu6050.writeByte(REG_MEM_START_ADDR, addr);
 }
 
@@ -188,8 +188,8 @@ fn write_memory_block(data: []const u8, verify: bool) !void {
     // Prepare to write memory blocks
     var bank: u8 = 0;
     var address: u8 = 0;
-    try set_memory_bank(bank);
-    try set_memory_start_address(address);
+    try setMemoryBank(bank);
+    try setMemoryStartAddress(address);
 
     var chunk_size: u8 = 0;
     var i: u16 = 0;
@@ -202,16 +202,16 @@ fn write_memory_block(data: []const u8, verify: bool) !void {
         // Make sure this chunk doesn't go past the bank boundary (256 bytes)
         if (chunk_size > @as(u9, 256) - address)
             chunk_size = @as(u8, @intCast(@as(u9, 256) - address));
-        
+
         // Slice the data into chunks and write them to the device
-        try mpu6050.write(REG_MEM_R_W, data[i..i + chunk_size]);
+        try mpu6050.write(REG_MEM_R_W, data[i .. i + chunk_size]);
         // Verify if needed
         if (verify) {
-            try set_memory_bank(bank);
-            try set_memory_start_address(address);
+            try setMemoryBank(bank);
+            try setMemoryStartAddress(address);
             var verify_buf: [DMP_MEMORY_CHUNK_SIZE]u8 = undefined;
             try mpu6050.read(REG_MEM_R_W, verify_buf[0..]);
-            if (!std.mem.eql(u8, verify_buf[0..chunk_size], data[i..i + chunk_size]))
+            if (!std.mem.eql(u8, verify_buf[0..chunk_size], data[i .. i + chunk_size]))
                 return error.VerificationFailed;
         }
 
@@ -223,14 +223,14 @@ fn write_memory_block(data: []const u8, verify: bool) !void {
         if (i < data.len) {
             if (address == 0)
                 bank += 1;
-            try set_memory_bank(bank);
-            try set_memory_start_address(address);
+            try setMemoryBank(bank);
+            try setMemoryStartAddress(address);
         }
     }
 }
 
 /// Set the accelerometer offsets.
-fn set_accel_offsets(offsets: [3]i16) !void {
+fn setAccelOffets(offsets: [3]i16) !void {
     // write_word(REG_XA_OFFS, @bitCast(offsets[0]));
     // write_word(REG_YA_OFFS, @bitCast(offsets[1]));
     // write_word(REG_ZA_OFFS, @bitCast(offsets[2]));
@@ -238,7 +238,7 @@ fn set_accel_offsets(offsets: [3]i16) !void {
 }
 
 /// Set the gyroscope offsets.
-fn set_gyro_offsets(offsets: [3]i16) !void {
+fn setGyroOffets(offsets: [3]i16) !void {
     // write_word(REG_XG_OFFS, @bitCast(offsets[0]));
     // write_word(REG_YG_OFFS, @bitCast(offsets[1]));
     // write_word(REG_ZG_OFFS, @bitCast(offsets[2]));
@@ -246,24 +246,24 @@ fn set_gyro_offsets(offsets: [3]i16) !void {
 }
 
 /// Enable or disable the DMP.
-inline fn set_dmp_enabled(enabled: bool) !void {
+inline fn setDmpEnabled(enabled: bool) !void {
     try mpu6050.writeBit(REG_USER_CTRL, 7, @intFromBool(enabled));
 }
 
 /// Get the current number of bytes in the FIFO buffer.
-fn get_fifo_count() !u16 {
+fn getFifoCount() !u16 {
     var count: [2]u8 = undefined;
     try mpu6050.read(REG_FIFO_COUNTH, count[0..]);
     return ((@as(u16, count[0])) << 8) | count[1];
 }
 
 /// Discard all data in the FIFO buffer.
-inline fn clear_fifo() !void {
+inline fn clearFifo() !void {
     try mpu6050.writeBit(REG_USER_CTRL, 2, 1);
 }
 
 /// Get bytes from the FIFO buffer.
 /// The amount of bytes read is determined by the length of slice `dest`.
-inline fn get_fifo_bytes(dest: []u8) !void {
+inline fn getFifoBytes(dest: []u8) !void {
     try mpu6050.read(REG_FIFO_R_W, dest);
 }

@@ -36,14 +36,6 @@ pub const HC_SR04 = struct {
 
     /// Deinitialize the sensor.
     pub fn deinit(self: *const @This()) void {
-        gpio.deinit(self.trig) catch |err| {
-            log.warn("failed to deinit trig pin ({})", .{ err });
-        };
-        if (self.trig != self.echo) {
-            gpio.deinit(self.echo) catch |err| {
-                log.warn("failed to deinit echo pin ({})", .{ err });
-            };
-        }
         log.info("deinitialized ultrasonic sensor (t: {}, e: {})", .{ self.trig, self.echo });
     }
 
@@ -54,14 +46,14 @@ pub const HC_SR04 = struct {
     /// This function is blocking, but it should not take more than a few milliseconds.
     pub fn measure(self: *@This()) !f32 {
         if (self.trig == self.echo)
-            gpio.init(self.trig, .Output); // Single pin mode
+            try gpio.init(self.trig, .Output); // Single pin mode
         // HC-SR04 requires a 10μs pulse to trigger a measurement
         try gpio.set(self.trig, .High);
         time.sleep(time.ns_per_us * 10);
         try gpio.set(self.trig, .Low);
 
         if (self.trig == self.echo)
-            gpio.init(self.echo, .Input);
+            try gpio.init(self.echo, .Input);
         const measure_start = time.microTimestamp();
         // Measure the length of the pulse sent back by the sensor
         while (try gpio.get(self.echo) == .Low or timedOut(measure_start)) {}

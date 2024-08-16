@@ -53,10 +53,12 @@ pub const Motor = struct {
         // Throttle the update rate, so as to ensure lerp is predictable
         if (time.milliTimestamp() - self.prev_update < MIN_UPDATE_INTERVAL)
             return;
-        if (self.thrust < -0.2 or self.thrust > 100.0)
+        if (self.thrust < 0.0 or self.thrust > 100.0) {
+            log.debug("thrust out of range: {}", .{ self.thrust });
             return error.OutOfRange;
-        // If (basically) zero thrust, bypass mapping and set directly to idle
-        if (self.thrust < 0.2) {
+        }
+        // If zero thrust, bypass mapping and set directly to idle
+        if (self.thrust == 0.0) {
             try pwm.setPulsewidth(self.pin, MOTOR_IDLE_PW);
             return;
         }

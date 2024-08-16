@@ -5,7 +5,7 @@ const log = std.log.scoped(.main);
 // All (relavent) imported namespaces are marked public so as to appear in documentation.
 // This is done in all files.
 
-pub const quad = @import("control/quad.zig");
+pub const motion = @import("control/motion.zig");
 
 pub const pixy = @import("device/pixy.zig");
 
@@ -13,7 +13,7 @@ pub const err = @import("lib/err.zig");
 pub const pigpio = @cImport({ @cInclude("pigpio.h"); });
 pub const signal = @import("lib/signal.zig");
 
-pub const server  = @import("remote/server.zig");
+pub const server = @import("remote/server.zig");
 pub const sockets = @import("remote/sockets.zig");
 
 pub const drone = @import("drone.zig");
@@ -32,7 +32,7 @@ pub fn main() !void {
     // Connect our shutdown function to the SIGINT and SIGTERM signals,
     // so that the drone can be safely shut down if the process must be terminated
     const sigs = [_]u6{ linux.SIG.INT, linux.SIG.TERM };
-    try signal.handle(&sigs, drone.shutdown );
+    try signal.handle(&sigs, drone.shutdown);
 
     // Initialize the webserver for remote control
     // This is done now so that other modules can subscribe to websocket events
@@ -59,8 +59,8 @@ pub fn main() !void {
     };
     defer pixy.deinit();
     try pixy.setLed(255, 255, 255, 1.0); // Improve visibility by 0.000001%
-    try quad.init(alloc);
-    defer quad.deinit();
+    try motion.init(alloc);
+    defer motion.deinit();
     // -- more hardware initialization can go here --
 
     // Once everything is initialized, we can enter the main loop
@@ -79,16 +79,16 @@ pub fn main() !void {
 
 /// Main control loop for the drone.
 inline fn loop() !void {
-    try quad.update();
+    try motion.update();
     sockets.update();
 }
 
 /// Event receiver for the 'kill' event.
-fn killEvent(_: sockets.SocketData) void {
+fn killEvent(_: sockets.SocketData) !void {
     drone.shutdown();
 }
 
 /// Event receiver for the 'shutdown' event.
-fn shutdownEvent(_: sockets.SocketData) void {
+fn shutdownEvent(_: sockets.SocketData) !void {
     drone.shutdownHost();
 }
