@@ -185,6 +185,7 @@ fn send(data: SocketData) !void {
 /// Notify all relavent receivers of new data.
 fn notify_receivers(data: SocketData) void {
     if (receivers.get(data.event)) |callback| {
+        log.info("received event '{s}'", .{ data.event });
         callback(data) catch |err| {
             log.warn("unhandled exception in receive callback: {}", .{ err });
         };

@@ -25,7 +25,7 @@ pub var base: f32 = 0.0;
 // Euler angles of the quadcopter (read-only).
 pub var angles = math3d.Vec3{ 0.0, 0.0, 0.0 };
 
-const MAX_UPDATE_RATE = 400; // update will be throttled to this rate if needed, hz
+const MAX_UPDATE_RATE = 200; // update will be throttled to this rate if needed, hz
 const MAX_UPDATE_PERIOD = time.ms_per_s / MAX_UPDATE_RATE;
 
 var alloc: std.mem.Allocator = undefined;

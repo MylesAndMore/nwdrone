@@ -36,6 +36,8 @@ pub const Block = pixy.Block;
 pub const MAX_BLOCKS = 100; // Maximum number of blocks to return at once
 pub const FRAME_WIDTH = 320;
 pub const FRAME_HEIGHT = 200;
+pub const HALF_FRAME_WIDTH = FRAME_WIDTH / 2;
+pub const HALF_FRAME_HEIGHT = FRAME_HEIGHT / 2;
 pub const Frame = [FRAME_WIDTH * FRAME_HEIGHT]u8;
 
 // Chip (Pixy communication protocol) packet types

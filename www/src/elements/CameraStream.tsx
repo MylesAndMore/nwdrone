@@ -195,6 +195,14 @@ const CameraStream: preact.FunctionComponent<CameraStreamProps> = ({
                 const x = block.x - block.width / 2;
                 const y = block.y - block.height / 2;
                 ctx.strokeRect(x, y, block.width, block.height);
+                // Circle at the center of the block
+                const centerX = block.x;
+                const centerY = block.y;
+                const radius = 2;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                ctx.fillStyle = "blue";
+                ctx.fill();
             });
 
             // Calculate and display FPS
