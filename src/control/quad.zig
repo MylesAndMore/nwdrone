@@ -6,6 +6,8 @@ const log = std.log.scoped(.quad);
 const math = std.math;
 const time = std.time;
 
+pub const motion = @import("motion.zig");
+
 pub const motor = @import("../device/motor.zig");
 pub const mpu = @import("../device/mpu6050.zig");
 
@@ -25,9 +27,6 @@ pub var base: f32 = 0.0;
 // Euler angles of the quadcopter (read-only).
 pub var angles = math3d.Vec3{ 0.0, 0.0, 0.0 };
 
-const MAX_UPDATE_RATE = 200; // update will be throttled to this rate if needed, hz
-const MAX_UPDATE_PERIOD = time.ms_per_s / MAX_UPDATE_RATE;
-
 var alloc: std.mem.Allocator = undefined;
 var orient_data: sockets.SocketData = undefined; // SocketData used to send orientation data
 
@@ -45,7 +44,7 @@ var pid_roll = PID.Controller {
     .kp = 0.5,
     .ki = 0.0,
     .kd = 0.2,
-    .tau = 0.1 * MAX_UPDATE_PERIOD,
+    .tau = motion.PIDS_TAU,
     .lim_min = -5.0,
     .lim_max = 5.0,
 };
@@ -53,7 +52,7 @@ var pid_pitch = PID.Controller {
     .kp = 0.5,
     .ki = 0.0,
     .kd = 0.2,
-    .tau = 0.1 * MAX_UPDATE_PERIOD,
+    .tau = motion.PIDS_TAU,
     .lim_min = -5.0,
     .lim_max = 5.0,
 };
@@ -61,7 +60,7 @@ var pid_yaw = PID.Controller {
     .kp = 1.0,
     .ki = 0.0,
     .kd = 0.0,
-    .tau = 0.1 * MAX_UPDATE_PERIOD,
+    .tau = motion.PIDS_TAU,
     .lim_min = -5.0,
     .lim_max = 5.0,
 };
@@ -152,9 +151,6 @@ pub fn zeroAttitude() !bool {
 /// Update the quadcopter motors.
 /// This should be called at a regular interval to keep the drone in a stable pose.
 pub fn update() !void {
-    if (time.milliTimestamp() - prev_update < MAX_UPDATE_PERIOD)
-        return;
-
     var q = try mpu.getQuaternion() orelse return;
     angles = q.toEuler() - offsets;
 
@@ -185,6 +181,4 @@ pub fn update() !void {
         thrust.* = math.clamp(thrust.*, 0.0, 100.0);
         m.thrust = thrust.*;
     }
-
-    prev_update = time.milliTimestamp();
 }

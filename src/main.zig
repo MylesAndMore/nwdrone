@@ -19,11 +19,6 @@ pub const sockets = @import("remote/sockets.zig");
 
 pub const drone = @import("drone.zig");
 
-const PRINT_UPDATE_RATE = 30; // seconds
-
-var last_print_time: i64 = 0; // Last time the loop rate was printed
-var loop_count: i64 = 0; // Number of loops since last print
-
 pub fn main() !void {
     // killHost() is deferred at the start of main() so it is called last,
     // and will only kill the host if it has been requested to do so
@@ -86,15 +81,6 @@ pub fn main() !void {
 inline fn loop() !void {
     try motion.update();
     sockets.update();
-    loop_count += 1;
-    // Print the loop rate where appropriate
-    const current_time = time.milliTimestamp();
-    if (current_time - last_print_time >= PRINT_UPDATE_RATE * time.ms_per_s) {
-        const rate = @divTrunc(loop_count, PRINT_UPDATE_RATE);
-        log.info("loop rate: {}hz", .{ rate });
-        last_print_time = current_time;
-        loop_count = 0;
-    }
 }
 
 /// Event receiver for the 'kill' event.

@@ -231,17 +231,11 @@ fn write_memory_block(data: []const u8, verify: bool) !void {
 
 /// Set the accelerometer offsets.
 fn setAccelOffets(offsets: [3]i16) !void {
-    // write_word(REG_XA_OFFS, @bitCast(offsets[0]));
-    // write_word(REG_YA_OFFS, @bitCast(offsets[1]));
-    // write_word(REG_ZA_OFFS, @bitCast(offsets[2]));
     try mpu6050.writeWords(REG_XA_OFFS, &[_]u16{ @bitCast(offsets[0]), @bitCast(offsets[1]), @bitCast(offsets[2]) });
 }
 
 /// Set the gyroscope offsets.
 fn setGyroOffets(offsets: [3]i16) !void {
-    // write_word(REG_XG_OFFS, @bitCast(offsets[0]));
-    // write_word(REG_YG_OFFS, @bitCast(offsets[1]));
-    // write_word(REG_ZG_OFFS, @bitCast(offsets[2]));
     try mpu6050.writeWords(REG_XG_OFFS, &[_]u16{ @bitCast(offsets[0]), @bitCast(offsets[1]), @bitCast(offsets[2]) });
 }
 

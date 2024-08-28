@@ -22,13 +22,13 @@ pub const State = enum {
 /// Initialize a GPIO pin with the specified mode.
 pub fn init(pin: u32, mode: Mode) !void {
     _ = try err.check(pigpio.gpioSetMode(pin, switch (mode) {
-        .Input, .InputPullUp, .InputPullDown => 0,
-        .Output => 1,
+        .Input, .InputPullUp, .InputPullDown => pigpio.PI_INPUT,
+        .Output => pigpio.PI_OUTPUT,
     }));
     _ = try err.check(pigpio.gpioSetPullUpDown(pin, switch (mode) {
-        .InputPullUp => 2,
-        .InputPullDown => 1,
-        else => 0,
+        .InputPullUp => pigpio.PI_PUD_UP,
+        .InputPullDown => pigpio.PI_PUD_DOWN,
+        else => pigpio.PI_PUD_OFF,
     }));
     log.info("initialized GPIO pin {} as {}", .{ pin, mode });
 }

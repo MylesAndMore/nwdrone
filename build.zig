@@ -107,7 +107,7 @@ pub fn build(b: *Build) !void {
     exe.root_module.addImport("httpz", httpz.module("httpz"));
     const includes = [_][]const u8{ "lib/pixyusb/include", "lib/pigpio/include" };
     addIncludePaths(b, exe, &includes);
-    const lib_paths = [_][]const u8{ "lib/pixyusb", "lib/pigpio/" };
+    const lib_paths = [_][]const u8{ "lib/pixyusb", "lib/pigpio" };
     try addLibraryPaths(alloc, b, exe, &lib_paths);
     const libs = [_][]const u8{ "pixyusb", "boost_chrono", "boost_system", "boost_thread", "usb-1.0", "pigpio" };
     forceLinkSystemLibraries(exe, &libs);
@@ -131,12 +131,12 @@ pub fn build(b: *Build) !void {
         .test_runner = b.path("test_runner.zig"),
     });
     const run_tests = b.addRunArtifact(tests);
+    test_step.dependOn(&run_tests.step); 
     if (yarn) {
         // Also run linter for the frontend during testing
         const yarn_lint = b.addSystemCommand(&[_][]const u8{ "yarn", "lint" });
         yarn_lint.setCwd(b.path("www"));
         test_step.dependOn(&yarn_lint.step);
-        test_step.dependOn(&run_tests.step);
     }
 
     // Documentation (generation) step

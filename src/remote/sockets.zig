@@ -126,6 +126,8 @@ pub fn init(alloc: mem.Allocator) void {
 /// Deinitialize the websocket backend.
 pub fn deinit() void {
     log.info("deinitializing backend", .{});
+    if (handlers.items.len > 0)
+        log.warn("some connections are still open. you may see a mem leak warning, this is a bug in the websocket library.", .{});
     handlers.deinit();
     receivers.deinit();
     dispatchers.deinit();

@@ -18,6 +18,7 @@
 
 - `zig build`
   - `zig build -h` shows all possible options (important being `-Dplatform`)
+  - What you probably want is `zig build -Dplatform=rpi0 -Dstrip=true --release=any --summary all`
 
 ## Extras
 

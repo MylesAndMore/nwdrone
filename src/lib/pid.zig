@@ -20,7 +20,9 @@ pub const Controller = struct {
     prev_time: i64 = 0,
 
     pub fn update(self: *@This(), setpoint: f64, measurement: f64) void {
-        const time: f64 = @floatFromInt(std.time.microTimestamp() - self.prev_time); // Time
+        if (self.prev_time == 0)
+            self.prev_time = std.time.microTimestamp();
+        const time = @as(f64, @floatFromInt(std.time.microTimestamp() - self.prev_time)) / @as(f64, std.time.us_per_s);
         const err = setpoint - measurement; // Error signal
         // Compute PID components
         const proportional = self.kp * err; // Proportional
@@ -32,20 +34,21 @@ pub const Controller = struct {
                               / (2.0 * self.tau + time);
 
         // Compute output and apply limits
-        self.out = proportional + self.integrator + self.differentiator;
-        if (self.out > self.lim_max) {
+        var out = proportional + self.integrator + self.differentiator;
+        if (out > self.lim_max) {
             // Anti-wind-up for over-saturated output
             if (self.ki != 0.0)
-                self.integrator += self.lim_max - self.out;
-            self.out = self.lim_max;
-        } else if (self.out < self.lim_min) {
+                self.integrator += self.lim_max - out;
+            out = self.lim_max;
+        } else if (out < self.lim_min) {
             // Anti-wind-up for under-saturated output
             if (self.ki != 0.0)
-                self.integrator += self.lim_min - self.out;
-            self.out = self.lim_min;
+                self.integrator += self.lim_min - out;
+            out = self.lim_min;
         }
 
-        // Store error, measurement, and time for later use
+        // Store output, error, measurement, and time for later use
+        self.out = out;
         self.prev_error = err;
         self.prev_measurement = measurement;
         self.prev_time = std.time.microTimestamp();

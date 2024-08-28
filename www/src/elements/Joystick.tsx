@@ -17,7 +17,7 @@ const Joystick = () => {
         joystick.on("move", (event, data) => {
             const { angle, distance } = data;
             const maxDist = 50;
-            const normalizedDist = (distance / maxDist) * 2; // Normalize to range -2 to 2
+            const normalizedDist = (distance / maxDist) * 3; // Normalize to range -2 to 2
             const roll = Math.cos(angle.radian) * normalizedDist;
             const pitch = Math.sin(angle.radian) * normalizedDist;
             socket.send({
@@ -27,7 +27,7 @@ const Joystick = () => {
         });
 
         joystick.on("end", () => {
-            socket.send({ event: "move", data: { roll: "0", pitch: "0" } });
+            socket.send({ event: "move", data: { roll: "0.0", pitch: "0.0" } });
         });
 
         return () => joystick.destroy();

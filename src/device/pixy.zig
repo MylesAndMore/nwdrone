@@ -157,6 +157,9 @@ pub fn setLed(r: u8, g: u8, b: u8, a: f32) PixyError!void {
 
 /// Get any blocks currently detected by the Pixy.
 /// The Pixy must be running a program for blocks to be generated.
+/// 
+/// See [the documentation](https://docs.pixycam.com/wiki/doku.php?id=wiki:v1:teach_pixy_an_object_2)
+/// for how to create a block.
 pub fn getBlocks(blocks: *[MAX_BLOCKS]Block) PixyError![]Block {
     const num_blocks = try check(pixy.pixy_get_blocks(MAX_BLOCKS, blocks));
     return blocks[0..@intCast(num_blocks)];
