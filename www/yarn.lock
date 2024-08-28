@@ -5409,6 +5409,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"nipplejs@npm:^0.10.2":
+  version: 0.10.2
+  resolution: "nipplejs@npm:0.10.2"
+  checksum: 10c0/7123558685ccdb8144c9ce04f78db56916f4579b94cb19f5b412535a69981d288252974592692dba6857bd0ad012431156fe1442becd70097df86152ea7fe9ac
+  languageName: node
+  linkType: hard
+
 "node-gyp@npm:latest":
   version: 10.2.0
   resolution: "node-gyp@npm:10.2.0"
@@ -6283,6 +6290,7 @@ __metadata:
     eslint-plugin-react: "npm:^7.35.0"
     eslint-plugin-react-hooks: "npm:^4.6.2"
     jest: "npm:^29.7.0"
+    nipplejs: "npm:^0.10.2"
     postcss: "npm:^8.4.40"
     preact: "npm:^10.23.1"
     preact-heroicons: "npm:^2.1.5"
