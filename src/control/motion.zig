@@ -40,6 +40,8 @@ const ALT_OFFSET = 7.0; // Offset from ultrasonic sensor to ground, in cm
 const CUTOFF_THRUST = 10.0; // Thrust at which to cut motors, in percent
 
 var sonar = ultrasonic.HC_SR04{ .trig = 17, .echo = 27 };
+var prev_update: i64 = 0; // Time of the previous call to update()
+var state = MotionState.IDLE; // Current state of the motion controller
 
 // PID controllers for X, Y, and Z movement
 // TODO: tune params
@@ -67,9 +69,6 @@ var pid_z = PID.Controller {
     .lim_min = 0.0,
     .lim_max = 40.0,
 };
-
-var prev_update: i64 = 0; // Time of the previous call to update()
-var state = MotionState.IDLE; // Current state of the motion controller
 
 /// Event handler for the `takeoff` event.
 fn takeoffEvent(_: sockets.SocketData) !void {
@@ -159,8 +158,7 @@ pub fn update() !void {
         return;
 
     // Get altitude from ultrasonic sensor
-    // const meas_alt = try sonar.measure() - ALT_OFFSET;
-    const meas_alt: f32 = if (state == .LAND) 50.0 else 0.0;
+    const meas_alt = try sonar.measure() - ALT_OFFSET;
     if (meas_alt > MAX_ALT) {
         log.warn("altitude too high, landing...", .{});
         land();

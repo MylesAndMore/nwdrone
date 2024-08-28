@@ -3,6 +3,9 @@ import { useEffect, useRef } from "preact/hooks";
 
 import { socket } from "../helpers/socket";
 
+const JOYSTICK_MAX_DIST = 50; // Maximum value of joystick distance
+const MAX_OUTPUT = 3; // For pitch/roll, degrees
+
 const Joystick = () => {
     const joystickRef = useRef<HTMLDivElement>(null);
 
@@ -16,13 +19,13 @@ const Joystick = () => {
 
         joystick.on("move", (event, data) => {
             const { angle, distance } = data;
-            const maxDist = 50;
-            const normalizedDist = (distance / maxDist) * 3; // Normalize to range -2 to 2
+
+            const normalizedDist = (distance / JOYSTICK_MAX_DIST) * MAX_OUTPUT; // Normalize to range [-MAX_OUTPUT, MAX_OUTPUT]
             const roll = Math.cos(angle.radian) * normalizedDist;
             const pitch = Math.sin(angle.radian) * normalizedDist;
             socket.send({
                 event: "move",
-                data: { roll: roll.toFixed(3), pitch: pitch.toFixed(3) },
+                data: { roll: roll.toFixed(3), pitch: (-pitch).toFixed(3) },
             });
         });
 

@@ -37,6 +37,7 @@ var br = motor.Motor{ .pin = 26, .pw_min = 1230.0, .pw_max = 1730.0 }; // back r
 var motors = [_]*motor.Motor{ &fl, &fr, &bl, &br };
 
 var offsets = math3d.Vec3{ 0.0, 0.0, 0.0 }; // Angle offsets set by zeroAttitude()
+var prev_update: i64 = 0; // Time of the previous call to update()
 
 // PID controllers for roll, pitch, and yaw
 // TODO: tune params
@@ -64,8 +65,6 @@ var pid_yaw = PID.Controller {
     .lim_min = -5.0,
     .lim_max = 5.0,
 };
-
-var prev_update: i64 = 0; // Time of the previous call to update()
 
 /// Apply `thrust` to all motors.
 fn setThrust(thrust: f32) void {
@@ -164,15 +163,11 @@ pub fn update() !void {
     pid_pitch.update(@floatCast(pitch), @floatCast(angles[1]));
     pid_yaw.update(@floatCast(yaw), @floatCast(angles[2]));
 
-    const roll_out = pid_roll.out;
-    const pitch_out = pid_pitch.out;
-    const yaw_out = pid_yaw.out;
-
     var thrusts = [_]f32{ 0.0, 0.0, 0.0, 0.0 };
-    thrusts[0] = @floatCast(base + roll_out + pitch_out + yaw_out);
-    thrusts[1] = @floatCast(base - roll_out + pitch_out - yaw_out);
-    thrusts[2] = @floatCast(base + roll_out - pitch_out - yaw_out);
-    thrusts[3] = @floatCast(base - roll_out - pitch_out + yaw_out);
+    thrusts[0] = @floatCast(base + pid_roll.out + pid_pitch.out + pid_yaw.out);
+    thrusts[1] = @floatCast(base - pid_roll.out + pid_pitch.out - pid_yaw.out);
+    thrusts[2] = @floatCast(base + pid_roll.out - pid_pitch.out - pid_yaw.out);
+    thrusts[3] = @floatCast(base - pid_roll.out - pid_pitch.out + pid_yaw.out);
     for (motors, &thrusts) |m, *thrust| {
         if (math.isNan(thrust.*)) {
             log.err("NaN thrust value calculated {}", .{thrust.*});
