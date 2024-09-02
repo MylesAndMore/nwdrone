@@ -130,7 +130,10 @@ pub fn takeoff() void {
     // Try a maximum of 10 times to zero the quadcopter's attitude
     for (0..10) |i| {
         log.info("zeroing attitude (try {})", .{ i });
-        const zeroed = quad.zeroAttitude();
+        const zeroed = quad.zeroAttitude() catch |err| {
+            log.warn("failed to zero attitude ({})", .{ err });
+            return;
+        };
         if (zeroed)
             break;
         if (i >= 9) {
@@ -156,8 +159,7 @@ pub fn update() !void {
         return;
 
     // Get altitude from ultrasonic sensor
-    // const meas_alt = try sonar.measure() - ALT_OFFSET;
-    const meas_alt: f32 = if (state == .LAND) 50.0 else 0.0;
+    const meas_alt = try sonar.measure() - ALT_OFFSET;
     if (meas_alt > MAX_ALT) {
         log.warn("altitude too high, landing...", .{});
         land();
