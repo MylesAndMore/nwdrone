@@ -27,15 +27,18 @@ const MotionState = enum {
 // Quadcopter's altitude, in cm (read-write).
 pub var alt: f32 = 0.0;
 
+// -- Time constants --
 const MAX_UPDATE_RATE = 200; // update will be throttled to this rate if needed, hz
 const MAX_UPDATE_PERIOD = time.ms_per_s / MAX_UPDATE_RATE;
 pub const PIDS_TAU = 0.1 * MAX_UPDATE_PERIOD; // tau constant for PID controllers, including those nested under motion controller
 
+// -- Altitude constants --
 const LANDED_ALT = 5.0; // cm
 const IGNORE_XY_GUIDANCE_BELOW_ALT = 10.0; // cm
 const INITIAL_HOVER_ALT = 50.0; // cm
 const MAX_ALT = 350.0; // cm
 
+// -- Thrust constants --
 const ALT_OFFSET = 7.0; // Offset from ultrasonic sensor to ground, in cm
 const CUTOFF_THRUST = 10.0; // Thrust at which to cut motors, in percent
 
@@ -67,7 +70,7 @@ var pid_z = PID.Controller {
     .kd = 0.5,
     .tau = PIDS_TAU,
     .lim_min = 0.0,
-    .lim_max = 40.0,
+    .lim_max = 60.0,
 };
 
 /// Event handler for the `takeoff` event.
@@ -125,20 +128,15 @@ pub fn deinit() void {
 pub fn takeoff() void {
     log.info("preparing for takeoff...", .{});
     // Try a maximum of 10 times to zero the quadcopter's attitude
-    var tries: usize = 0;
-    while (tries < 10) {
-        log.info("zeroing attitude (try {})", .{ tries });
-        const zeroed = quad.zeroAttitude() catch |err| {
-            log.warn("failed to zero attitude ({})", .{ err });
-            return;
-        };
+    for (0..10) |i| {
+        log.info("zeroing attitude (try {})", .{ i });
+        const zeroed = quad.zeroAttitude();
         if (zeroed)
             break;
-        tries += 1;
-    }
-    if (tries == 10) {
-        log.warn("failed to zero attitude (timed out)", .{});
-        return;
+        if (i >= 9) {
+            log.warn("failed to zero attitude (timed out)", .{});
+            return;
+        }
     }
     log.info("taking off!", .{});
     state = .REV;
@@ -158,13 +156,15 @@ pub fn update() !void {
         return;
 
     // Get altitude from ultrasonic sensor
-    const meas_alt = try sonar.measure() - ALT_OFFSET;
+    // const meas_alt = try sonar.measure() - ALT_OFFSET;
+    const meas_alt: f32 = if (state == .LAND) 50.0 else 0.0;
     if (meas_alt > MAX_ALT) {
         log.warn("altitude too high, landing...", .{});
         land();
     }
 
     switch (state) {
+        .IDLE => return,
         .REV => {
             quad.rev();
             alt = INITIAL_HOVER_ALT;
@@ -200,14 +200,13 @@ pub fn update() !void {
             quad.roll = @floatCast(pid_x.out);
             quad.pitch = @floatCast(pid_y.out);
         },
-        // --All movement for teleop happens in the move event handler--
+        .TELEOP => {}, // All movement for teleop happens in the move event handler
         .LAND => {
             if (meas_alt < LANDED_ALT) {
                 log.info("landed!", .{});
                 state = .IDLE;
             }
         },
-        else => {},
     }
 
     // Z (altitude) PID is updated regardless of state
